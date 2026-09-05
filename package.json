@@ -1,0 +1,21 @@
+{
+    "name": "pstgu-new-martyrs-app",
+    "version": "1.0.0",
+    "description": "Приложение БД «ЗХп»",
+    "main": "index.js",
+    "scripts": {
+        "start": "echo \"Init\" && exit 1",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ddybka/pstgu-new-martyrs-app.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "GPL-3.0-only",
+    "bugs": {
+        "url": "https://github.com/ddybka/pstgu-new-martyrs-app/issues"
+    },
+    "homepage": "https://github.com/ddybka/pstgu-new-martyrs-app#readme"
+}
