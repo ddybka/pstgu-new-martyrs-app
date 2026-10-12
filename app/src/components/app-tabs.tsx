@@ -29,9 +29,6 @@ export default function AppTabs() {
                 <NativeTabs.Trigger.Label>Карта</NativeTabs.Trigger.Label>
                 <NativeTabs.Trigger.Icon sf="map.fill" md="map" />
             </NativeTabs.Trigger>
-
-            <NativeTabs.Trigger name="about" hidden />
-            <NativeTabs.Trigger name="help" hidden />
         </NativeTabs>
     );
 }
