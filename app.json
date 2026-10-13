@@ -1,5 +1,8 @@
 {
   "ios": {
     "bundleIdentifier": "com.reddboy.pstgu-new-martyrs-app"
+  },
+  "android": {
+    "package": "com.reddboy.pstgunewmartyrsapp"
   }
 }
