@@ -46,6 +46,7 @@ function RootNavigator() {
     const personOptions = useDetailHeaderOptions();
     const aboutOptions = useDetailHeaderOptions('О проекте', { large: true });
     const helpOptions = useDetailHeaderOptions('Помочь проекту', { large: true });
+    const SettingsOptions = useDetailHeaderOptions('Настройки', { large: true });
 
     const [fontsLoaded, fontsError] = useFonts({ PTSerif_400Regular, PTSerif_700Bold });
     if (!fontsLoaded && !fontsError) return null;
@@ -98,6 +99,10 @@ function RootNavigator() {
                     <Stack.Screen
                         name="help"
                         options={{ ...helpOptions, headerLeft: webBackButton }}
+                    />
+                    <Stack.Screen
+                        name="settings"
+                        options={{ ...SettingsOptions, headerLeft: webBackButton }}
                     />
                 </Stack>
             </LoginProvider>
