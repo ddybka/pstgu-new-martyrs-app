@@ -1,7 +1,7 @@
 {
     "expo": {
         "name": "Память",
-        "slug": "pamyat_novomuchenikov",
+        "slug": "pamyatnovomuchenikov",
         "version": "1.0.0",
         "orientation": "portrait",
         "icon": "./assets/images/icon.png",
@@ -18,7 +18,7 @@
                 "dark": "./assets/images/icon-ios-dark.png",
                 "tinted": "./assets/images/icon-ios-tinted.png"
             },
-            "bundleIdentifier": "com.daniil_dybka.pamyat_novomuchenikov"
+            "bundleIdentifier": "com.daniildybka.pamyatnovomuchenikov"
         },
         "android": {
             "adaptiveIcon": {
