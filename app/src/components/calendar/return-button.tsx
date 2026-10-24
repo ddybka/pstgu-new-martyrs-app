@@ -49,10 +49,10 @@ const styles = StyleSheet.create({
         borderRadius: RETURN_BUTTON_HEIGHT / 2,
     },
     icon: {
-        transform: [{ translateY: -4 }],
+        transform: [{ translateY: -1 }],
     },
     iconTurnedLeft: {
-        transform: [{ translateY: -4 }, { rotate: '90deg' }],
+        transform: [{ translateY: -1 }, { rotate: '90deg' }],
     },
     pressed: {
         opacity: 0.7,

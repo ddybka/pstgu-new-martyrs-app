@@ -3,7 +3,7 @@
  *
  * В базе `ФИО` записано по-справочному: фамилия вперёд и заглавными
  * («АРТЕМЬЕВ Фома Константинович»), у монашествующих вперёд монашеское имя, а
- * мирское — в скобках («АВГУСТА (Зашук Лидия Васильевна)»). Для краткой
+ * мирское в скобках («АВГУСТА (Зашук Лидия Васильевна)»). Для краткой
  * карточки порядок меняется на привычный, а заглавными остаётся имя.
  */
 
@@ -17,7 +17,6 @@ function isGroup(token: string) {
     return token.startsWith('(') && token.endsWith(')');
 }
 
-/** Слово целиком заглавными, без точек инициалов. */
 function isCapsWord(token: string) {
     return /^[А-ЯЁ-]{2,}$/.test(token);
 }
@@ -52,7 +51,6 @@ function tokenize(text: string) {
     return tokens;
 }
 
-/** Делит строку по первому разделителю вне скобок. */
 function splitOutside(text: string, separator: string): [string, string | null] {
     let depth = 0;
 
@@ -68,16 +66,11 @@ function splitOutside(text: string, separator: string): [string, string | null] 
     return [text, null];
 }
 
-/** «ИВАНОВА-ЯКУБОВИЧ» → «Иванова-Якубович». Слова со строчными не трогаются. */
 function titleCase(word: string) {
     if (hasLower(word)) return word;
     return word.toLowerCase().replace(/(^|[-\s(])([а-яёa-z])/g, (_, before, letter) => before + letter.toUpperCase());
 }
 
-/**
- * Переставляет фамилию из начала в конец: «Зашук Лидия Васильевна» →
- * «Лидия Васильевна Зашук».
- */
 function surnameLast(text: string, upperName: boolean) {
     const tokens = tokenize(text);
     const [surname] = tokens;
@@ -92,8 +85,6 @@ function surnameLast(text: string, upperName: boolean) {
 
     if (rest.length === 0) return lastName.join(' ');
 
-    // Вся строка заглавными («АНАСТАСИЯ ШУЙСКАЯ») — это не фамилия с именем,
-    // а имя с прозванием.
     if (isCapsWord(rest[0])) return text;
 
     const last = rest[rest.length - 1];
@@ -107,16 +98,10 @@ function surnameLast(text: string, upperName: boolean) {
     return [...rest, ...lastName, ...(fullAlternative ? [fullAlternative] : [])].join(' ');
 }
 
-/**
- * Мирское ФИО — целиком или в скобках у монашествующих. Помимо самого
- * имени тут бывают приписки: «, архиепископ Димитрий», «в схиме Иона;» —
- * они остаются на своих местах.
- */
 function formatSecularName(text: string, upperName: boolean): string {
     return text
         .split('; ')
         .map((part) => {
-            // Строчная в начале — приписка составителя («в схиме Иона»), не имя.
             if (!/^[А-ЯЁA-Z]/.test(part)) return part;
 
             const normalized = part.replace(/^(\S+), (иначе \S+), /, '$1 ($2) ');
@@ -133,8 +118,6 @@ export function formatPersonName(fio: string | undefined | null): string | null 
     const text = fio.replace(/\s+/g, ' ').trim();
     const tokens = tokenize(text);
 
-    // Монашествующие: заглавное имя (бывает с вариантом или прозванием), за
-    // ним скобка с мирским ФИО и, может быть, приписка через запятую.
     const secular = tokens.findIndex((token) => isGroup(token) && hasLower(token));
     if (secular > 0 && tokens.slice(0, secular).every((token) => !hasLower(token))) {
         const after = tokens.slice(secular + 1).join(' ');
@@ -149,10 +132,6 @@ export function formatPersonName(fio: string | undefined | null): string | null 
     return formatSecularName(text, true);
 }
 
-/**
- * Первая буква — заглавная: «протоиерей» → «Протоиерей». В базе тексты иногда
- * начинаются со строчной, а в интерфейсе они стоят в начале строки.
- */
 export function capitalize(value: string | undefined | null): string | null {
     const text = value?.trim();
     if (!text) return null;

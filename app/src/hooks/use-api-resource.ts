@@ -51,13 +51,15 @@ function initialFor<T>(key: string | null): State<T> {
     return key === null ? { ...EMPTY, absent: true } : { ...EMPTY, loading: true };
 }
 
-export type UseApiResourceOptions = {
+export type UseApiResourceOptions<T> = {
     freshMs?: number;
+    /** Должен быть объявлен вне компонента */
+    fetcher?: (key: string) => Promise<T>;
 };
 
 export function useApiResource<T>(
     key: string | null,
-    { freshMs = FRESH_MS }: UseApiResourceOptions = {}
+    { freshMs = FRESH_MS, fetcher = apiFetch<T> }: UseApiResourceOptions<T> = {}
 ): ApiResource<T> {
     // Состояние хранится вместе с ключом, которому оно принадлежит, и
     // сбрасывается прямо в отрисовке, как только ключ сменился. Так на экране
@@ -111,7 +113,7 @@ export function useApiResource<T>(
             }
 
             try {
-                const data = await apiFetch<T>(key);
+                const data = await fetcher(key);
                 if (!alive()) return;
 
                 setState({
@@ -153,7 +155,7 @@ export function useApiResource<T>(
                 );
             }
         },
-        [key, freshMs, setState]
+        [key, freshMs, fetcher, setState]
     );
 
     useEffect(() => {

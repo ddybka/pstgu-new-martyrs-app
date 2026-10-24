@@ -7,6 +7,7 @@ import { BlockError } from "@/components/block-error";
 import { BlockLoading } from "@/components/block-loading";
 import { ListButton } from "@/components/list-button";
 import { OfflineNotice } from "@/components/offline-notice";
+import { PersonMap } from "@/components/person-map";
 import { PersonMenu } from "@/components/person-menu";
 import { PersonPhotos } from "@/components/person-photos";
 import { ThemedText } from "@/components/themed-text";
@@ -158,6 +159,8 @@ export default function PagePerson() {
                             </View>
                         )}
                     </View>
+
+                    {number !== null && <PersonMap number={number} />}
 
                     <View style={styles.actions}>
                         <ThemedText type="smallBold" style={styles.actionTitle}>

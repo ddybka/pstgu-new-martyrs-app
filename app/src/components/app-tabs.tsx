@@ -25,10 +25,10 @@ export default function AppTabs() {
                 <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
             </NativeTabs.Trigger>
 
-            {/* <NativeTabs.Trigger name="map">
+            <NativeTabs.Trigger name="map">
                 <NativeTabs.Trigger.Label>Карта</NativeTabs.Trigger.Label>
                 <NativeTabs.Trigger.Icon sf="map.fill" md="map" />
-            </NativeTabs.Trigger> */}
+            </NativeTabs.Trigger>
         </NativeTabs>
     );
 }

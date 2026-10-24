@@ -1,4 +1,5 @@
 import { useApiResource } from '@/hooks/use-api-resource';
+import { apiFetch } from '@/utils/api-fetch';
 
 /** Дата памяти новомученика */
 export type PersonDate = {
@@ -55,10 +56,11 @@ export type PersonsResponse = {
 
 export type UsePersonsOptions = {
     filter?: Record<string, unknown>;
-    dataFormat?: 'full' | 'short';
-    skip?: number;
-    take?: number;
+    dataFormat?: 'full' | 'item' | 'text';
 };
+
+/** Больше 50 за раз API не отдаёт */
+const PAGE_SIZE = 50;
 
 /** Фильтр по дню памяти: месяц и число, без года. */
 export function dayOfYearFilter(month: number, day: number) {
@@ -72,20 +74,39 @@ export function memorialDayFilter(date = new Date()) {
     return dayOfYearFilter(date.getMonth() + 1, date.getDate());
 }
 
-export function buildPersonsUrl({ filter, dataFormat = 'full', skip, take }: UsePersonsOptions = {}) {
+export function buildPersonsUrl({ filter, dataFormat = 'full' }: UsePersonsOptions = {}) {
     const params = new URLSearchParams({
         data_format: dataFormat,
         filter: JSON.stringify(filter ?? memorialDayFilter()),
     });
 
-    if (skip !== undefined) params.set('skip', String(skip));
-    if (take !== undefined) params.set('take', String(take));
-
     return `public/dela?${params.toString()}`;
 }
 
+/** API отдаёт дела страницами, поэтому собираем все страницы в один ответ */
+async function fetchAllPersons(url: string): Promise<PersonsResponse> {
+    const items: Person[] = [];
+    let page: PersonsResponse;
+
+    do {
+        page = await apiFetch<PersonsResponse>(`${url}&skip=${items.length}&take=${PAGE_SIZE}`);
+        items.push(...page.items);
+    } while (page.has_next && page.items.length > 0);
+
+    return {
+        ...page,
+        items,
+        items_count: items.length,
+        has_next: false,
+        skip: 0,
+        take: items.length,
+    };
+}
+
 export function usePersons(options: UsePersonsOptions = {}) {
-    const { data, ...resource } = useApiResource<PersonsResponse>(buildPersonsUrl(options));
+    const { data, ...resource } = useApiResource<PersonsResponse>(buildPersonsUrl(options), {
+        fetcher: fetchAllPersons,
+    });
 
     return {
         ...resource,

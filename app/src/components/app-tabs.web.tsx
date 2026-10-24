@@ -46,9 +46,9 @@ export default function AppTabs() {
                     <TabTrigger name="calendar" href="/calendar" asChild>
                         <TabButton>Календарь</TabButton>
                     </TabTrigger>
-                    {/* <TabTrigger name="map" href="/map" asChild>
+                    <TabTrigger name="map" href="/map" asChild>
                         <TabButton>Карта</TabButton>
-                    </TabTrigger> */}
+                    </TabTrigger>
                 </CustomTabList>
             </TabList>
         </Tabs>

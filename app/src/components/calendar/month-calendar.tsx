@@ -30,18 +30,8 @@ export const MONTHS_FOR_DATE = [
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 
 const COLUMNS = 7;
-/**
- * Строки в календаре - всегда шесть.
- */
 const ROWS = 6;
 
-/**
- * Какие годы можно пролистать: с 1900-го — эпоха гонений целиком — и на
- * десять лет вперёд от текущего.
- *
- * Год здесь нужен только для того, чтобы числа вставали под свои дни недели:
- * память новомучеников — по месяцу и числу, и на список год не влияет.
- */
 const FIRST_YEAR = 1900;
 const YEARS_AHEAD = 10;
 
@@ -54,7 +44,6 @@ export type CalendarDate = {
 };
 
 export type MonthCalendarProps = {
-    /** Выбранная дата. */
     value: CalendarDate;
     onChange: (date: CalendarDate) => void;
 };
@@ -64,8 +53,6 @@ const HEADER_ROW_HEIGHT = Math.max(28, RETURN_BUTTON_HEIGHT);
 const MONTH_OPTIONS = MONTHS.map((label, index) => ({ value: index + 1, label }));
 
 function daysInMonth(year: number, month: number) {
-    // Нулевое число следующего месяца — последнее число этого. Високосный
-    // февраль Date считает сам.
     return new Date(year, month, 0).getDate();
 }
 
@@ -91,7 +78,6 @@ function MonthGrid({
     const today = new Date();
     const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
 
-    // Пустые ячейки до первого числа и после последнего: сетка всегда 6×7.
     const offset = firstWeekday(year, month);
     const cells = Array.from({ length: ROWS * COLUMNS }, (_, index) => {
         const day = index - offset + 1;
@@ -123,12 +109,8 @@ function MonthGrid({
                                     <ThemedText
                                         style={[
                                             styles.dayText,
-                                            // Выходные — неакцентным цветом,
-                                            // у выбранного числа цвет свой — на заливке.
                                             column >= WEEKEND_FROM && { color: theme.textSecondary },
                                             isSelected && { color: theme.background },
-                                            // Сегодняшнее число выделяется жирным, но только
-                                            // когда оно не выбрано — иначе конфликтует с заливкой.
                                             isToday && !isSelected && styles.todayText,
                                         ]}>
                                         {day}
@@ -160,17 +142,6 @@ function HeaderPicker({ label, accessibilityLabel, ...dropdown }: {
     );
 }
 
-/**
- * Календарь по месяцам, с понедельника.
- *
- * Над числами — дни недели, и числа стоят под своими днями. Ради этого у
- * календаря есть год: без года день недели не определён. На список
- * новомучеников год не влияет — память по месяцу и числу.
- *
- * Месяцы вынесены в горизонтальный пейджер, а не в собственные жесты и
- * анимации: так свайп и инерция достаются нативными, одинаково на всех
- * платформах.
- */
 export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
     const theme = useTheme();
     const firstYear = FIRST_YEAR;
@@ -194,12 +165,6 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
         label: String(lastYear - i),
     }));
 
-    // Переход из списка — сразу, без прокрутки: лента пересоздаётся уже на
-    // нужной странице. Прокрутка к далёкой странице (`scrollToOffset`) в вебе
-    // ломалась: листание там сделано на CSS scroll-snap, а страницы вдали ещё
-    // не нарисованы (список виртуальный), и браузер «прилипал» к ближайшей
-    // нарисованной — первой, январю 1900-го. Пересоздать ленту дёшево: в ней
-    // нарисовано лишь два десятка месяцев вокруг видимого.
     const goTo = (year: number, month: number) => {
         const next = pageOf(year, month);
         if (next === page) return;
@@ -208,7 +173,6 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
         setJump((current) => ({ page: next, key: current.key + 1 }));
     };
 
-    // Выбранное число не на экране — в шапке кнопка вернуться к нему.
     const selectedVisible = value.year === visibleYear && value.month === visibleMonth;
 
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -292,7 +256,6 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.four,
         paddingTop: Spacing.two,
     },
-    // Высота шапки задана жёстко и с запасом под кнопку возврата.
     header: {
         height: HEADER_ROW_HEIGHT + Spacing.three,
         flexDirection: 'row',

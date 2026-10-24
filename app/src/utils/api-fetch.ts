@@ -1,6 +1,6 @@
 import { getSecureItem, removeSecureItem, setSecureItem } from './secure-cache';
 
-export const API_URL = 'https://api.nmbook.ru/';
+export const API_URL = 'http://api.nmbook.ru/';
 
 const API_LOGIN = '';
 const API_PASSWORD = '';

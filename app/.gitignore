@@ -46,3 +46,6 @@ example
 /android
 
 .DS_Store
+
+# Копию воркера MapLibre кладёт scripts/copy-maplibre-worker.mjs на postinstall
+public/maplibre/

@@ -3,7 +3,6 @@ import {
     Pressable,
     StyleSheet,
     View,
-    useColorScheme,
     useWindowDimensions,
 } from "react-native";
 import Animated, {
@@ -18,6 +17,7 @@ import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 import { HeadingFonts, Spacing } from "@/constants/theme";
 import { useCardView } from "@/context/card-view";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
 import { Person } from "@/hooks/use-persons";
 import { capitalize, formatPersonName, formatRank } from "@/utils/person-name";
