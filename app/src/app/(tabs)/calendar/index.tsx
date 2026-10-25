@@ -8,8 +8,10 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { dayOfYearFilter, usePersons } from '@/hooks/use-persons';
 import { readStored, writeStored } from '@/utils/storage';
+import { ListButton } from '@/components/list-button';
+import { router } from 'expo-router';
+import Constants from 'expo-constants';
 
-/** Выбранная дата переживает перезапуск приложения. */
 const STORAGE_KEY = 'calendar-selected-date';
 
 function parseStored(raw: string | null): CalendarDate | null {
@@ -32,11 +34,7 @@ function todayDate(): CalendarDate {
 
 export default function CalendarScreen() {
     const [selected, setSelected] = useState<CalendarDate>(todayDate);
-    // Календарь держит открытый месяц у себя и берёт его из даты только при
-    // монтировании. Сохранённая дата читается асинхронно, уже после первого
-    // кадра, — поэтому с ней календарь монтируется заново, на её месяце.
     const [calendarKey, setCalendarKey] = useState(0);
-    // Дату успели выбрать раньше, чем прочиталась сохранённая, — она главнее.
     const touched = useRef(false);
 
     useEffect(() => {
@@ -75,10 +73,26 @@ export default function CalendarScreen() {
         </View>
     );
 
+    const footer = (
+        <View style={styles.footer}>
+            <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
+            <ListButton label="О проекте" onPress={() => router.push('/about')} />
+            <ListButton label="Настройки" onPress={() => router.push('/settings')} last />
+            <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.version}
+            >
+                v{Constants.expoConfig?.version ?? '0.0.0'}
+            </ThemedText>
+        </View>
+    );
+
     return (
         <ShowCards
             persons={persons}
             header={header}
+            footer={footer}
             loading={loading}
             refreshing={refreshing}
             onRefresh={refresh}
@@ -105,6 +119,14 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.three,
         fontSize: 17,
         lineHeight: 22,
+    },
+    footer: {
+        width: '100%',
+        paddingTop: Spacing.five,
+    },
+    version: {
+        paddingTop: Spacing.five,
+        textAlign: 'center',
     },
 });
 

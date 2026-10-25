@@ -170,9 +170,11 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
     const visibleYear = firstYear + Math.floor(page / 12);
     const visibleMonth = (page % 12) + 1;
 
+    // По возрастанию: старые годы сверху, новые снизу. Список открывается
+    // сразу на выбранном году, так что листать от 1900 не приходится.
     const yearOptions = Array.from({ length: yearCount }, (_, i) => ({
-        value: lastYear - i,
-        label: String(lastYear - i),
+        value: firstYear + i,
+        label: String(firstYear + i),
     }));
 
     const goTo = (year: number, month: number) => {
@@ -198,7 +200,9 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
     };
 
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        if (width === 0) return;
+        // Ширина уже другая, а список ещё не пересоздан — смещение посчитано
+        // для старых страниц и указывает не туда.
+        if (width === 0 || Math.abs(event.nativeEvent.layoutMeasurement.width - width) > 1) return;
 
         const index = Math.min(pageCount - 1, Math.max(0, Math.round(event.nativeEvent.contentOffset.x / width)));
         if (index === page) return;
@@ -208,7 +212,16 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
 
     const onLayout = (event: LayoutChangeEvent) => {
         const next = event.nativeEvent.layout.width;
-        if (next > 0 && next !== width) setWidth(next);
+        if (next <= 0 || next === width) return;
+
+        // Страницы меняют ширину, а смещение прокрутки остаётся прежним — и
+        // указывает уже на другой месяц. Пересоздаём список на текущей
+        // странице. В Safari ширина скачет, когда появляется и пропадает
+        // вертикальный скроллбар (scrollbar-width: none там не везде работает):
+        // без этого календарь листался, менял дату, список новомучеников
+        // менял высоту, скроллбар снова пропадал — и так по кругу.
+        if (width > 0) setJump((current) => ({ page, key: current.key + 1 }));
+        setWidth(next);
     };
 
     return (

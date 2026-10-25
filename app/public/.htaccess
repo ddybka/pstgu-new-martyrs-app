@@ -1,0 +1,39 @@
+# Веб-версия «Памяти» на Apache. Нужен mod_rewrite и AllowOverride All.
+# Сайт должен лежать в корне домена: пути к скриптам и воркеру карты абсолютные.
+
+Options -MultiViews -Indexes
+DirectoryIndex index.html
+# Иначе /calendar перенаправлялся бы на /calendar/ лишним запросом.
+DirectorySlash Off
+
+# Воркер карты — модуль .mjs. С типом application/octet-stream браузер его не
+# запустит, и карта останется пустой.
+AddType text/javascript .mjs
+
+RewriteEngine On
+
+# Страница новомученика: один шаблон на все номера.
+RewriteRule ^person/[^/]+/?$ person/[id].html [L]
+
+# Разделы-папки без косой черты: /calendar → calendar/index.html.
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_FILENAME}/index.html -f
+RewriteRule ^(.+?)/?$ $1/index.html [L]
+
+# Адреса без .html: /about → about.html.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.+?)/?$ $1.html [L]
+
+ErrorDocument 404 /+not-found.html
+
+<IfModule mod_headers.c>
+    # Страницы не кэшируются: новая сборка видна сразу после загрузки.
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+    # Скрипты и картинки сборки с хешем в имени — надолго.
+    <If "%{REQUEST_URI} =~ m#^/(_expo|assets)/#">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+</IfModule>

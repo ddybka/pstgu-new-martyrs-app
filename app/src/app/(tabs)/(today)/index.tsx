@@ -16,8 +16,6 @@ export default function HomeScreen() {
         return <BlockError error={error} onRetry={refresh} />;
     }
 
-    // Кнопки вида карточек и «⋯» на iOS и Android — в шапке экрана, а в вебе
-    // здесь, справа от строки «Найдено…», только вид (см. tab-header-menu).
     const header = (
         <View style={styles.header}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.date}>

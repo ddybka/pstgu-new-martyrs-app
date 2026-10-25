@@ -1,11 +1,10 @@
 /**
  * Адрес веб-версии — из него собираются ссылки «Поделиться».
  *
- * Домен временный: как только появится настоящий, меняется здесь одно место.
  * Ссылки должны совпадать с маршрутами приложения, поэтому путь строится тем
  * же способом, что и в роутере: /person/{Номер}.
  */
-export const SITE_URL = 'https://example.com';
+export const SITE_URL = 'https://fcsmap.nmbook.ru';
 
 export function personUrl(number: number) {
     return `${SITE_URL}/person/${number}`;
