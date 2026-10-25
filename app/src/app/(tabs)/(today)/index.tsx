@@ -92,8 +92,8 @@ function formatMartyrsCount(count: number) {
 
     const ending =
         lastDigit === 1 && lastTwoDigits !== 11
-            ? ',\nпоминаемый сегодня.'
-            : ',\nпоминаемых сегодня.';
+            ? ',\nпоминаемый сегодня'
+            : ',\nпоминаемых сегодня';
 
     return `Найдено ${count} ${noun}${ending}`;
 }

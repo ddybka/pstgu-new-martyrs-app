@@ -144,5 +144,5 @@ function formatMartyrsCount(count: number, date: string) {
                     ? 'новомученика'
                     : 'новомучеников';
 
-    return `Найдено ${count} ${noun},\n${singular ? 'поминаемый' : 'поминаемых'} ${date}.`;
+    return `Найдено ${count} ${noun},\n${singular ? 'поминаемый' : 'поминаемых'} ${date}`;
 }

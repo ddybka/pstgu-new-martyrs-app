@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Suspense, lazy, useMemo, useState, useSyncExternalStore } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlockLoading } from '@/components/block-loading';
@@ -62,6 +62,7 @@ export default function MapScreen() {
     const { person } = useLocalSearchParams<{ person?: string }>();
     const focusNumber = normalizePersonNumber(person);
     const insets = useSafeAreaInsets();
+    const { width: windowWidth } = useWindowDimensions();
     // На iOS шапка прозрачная и карта начинается под ней — фильтр ставится
     // ниже шапки. На Android шапка сплошная, и карта начинается после неё.
     const headerHeight = useHeaderHeight();
@@ -140,7 +141,7 @@ export default function MapScreen() {
                 hidden={hidden}
                 onChange={setHidden}
                 counts={counts}
-                inset={Platform.OS === 'web' ? 0 : Spacing.three}
+                inset={Platform.OS === 'web' ? webHeaderEdge(windowWidth) : Spacing.three}
                 style={[styles.filter, Platform.OS === 'web' && styles.filterWeb, filterTop !== undefined && { top: filterTop }]}
             />
 
@@ -161,6 +162,15 @@ export default function MapScreen() {
     );
 }
 
+/**
+ * Отступ края плавающей шапки от края окна: поля Spacing.three, а шире
+ * MaxContentWidth шапка не растёт и стоит по центру — см. tabListContainer
+ * в app-tabs.web.
+ */
+function webHeaderEdge(windowWidth: number) {
+    return Math.max(Spacing.three, (windowWidth - MaxContentWidth) / 2);
+}
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -175,15 +185,10 @@ const styles = StyleSheet.create({
         right: 0,
         flexGrow: 0,
     },
-    // В вебе ряд стоит ровно под плавающей шапкой: та же ширина (не больше
-    // MaxContentWidth), те же поля от краёв окна, по центру. Края переключателей
-    // совпадают с краями шапки — см. tabListContainer в app-tabs.web.
+    // В вебе лента во всю ширину окна и прокручивается от края до края,
+    // а в покое переключатели стоят ровно под шапкой — см. webHeaderEdge.
     filterWeb: {
         top: WebHeaderInset,
-        left: Spacing.three,
-        right: Spacing.three,
-        maxWidth: MaxContentWidth,
-        marginHorizontal: 'auto',
     },
     panelWeb: {
         left: Spacing.three,

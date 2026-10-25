@@ -29,6 +29,13 @@ export default function AppTabs() {
                 <NativeTabs.Trigger.Label>Карта</NativeTabs.Trigger.Label>
                 <NativeTabs.Trigger.Icon sf="map.fill" md="map" />
             </NativeTabs.Trigger>
+
+            {/* На iOS 26 — системная вкладка поиска: отдельно справа, и при
+                выборе сама ставит курсор в строку поиска своего экрана. */}
+            <NativeTabs.Trigger name="search" role="search">
+                <NativeTabs.Trigger.Label>Поиск</NativeTabs.Trigger.Label>
+                <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
+            </NativeTabs.Trigger>
         </NativeTabs>
     );
 }

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { type ComponentRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-    FlatList,
     LayoutChangeEvent,
     NativeScrollEvent,
     NativeSyntheticEvent,
+    Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     View,
+    useWindowDimensions,
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -36,6 +38,20 @@ const FIRST_YEAR = 1900;
 const YEARS_AHEAD = 10;
 
 const WEEKEND_FROM = 5;
+
+/** Стрелки перелистывания — только на широком экране: на телефоне листают свайпом. */
+const ARROWS_MIN_WIDTH = 700;
+
+/** Сколько месяцев смонтировано по обе стороны от открытого. */
+const PAGES_AROUND = 12;
+
+/**
+ * В вебе страницы докручивает не CSS scroll-snap, а сам календарь: через
+ * столько миллисекунд после последнего события прокрутки (жест и инерция
+ * тачпада закончились) и если страницу сдвинули хотя бы на эту долю ширины.
+ */
+const WEB_SETTLE_DELAY = 120;
+const WEB_SETTLE_THRESHOLD = 0.08;
 
 export type CalendarDate = {
     year: number;
@@ -152,8 +168,29 @@ function HeaderPicker({ label, accessibilityLabel, ...dropdown }: {
     );
 }
 
+function ArrowButton({ direction, accessibilityLabel, disabled, onPress }: {
+    direction: 'left' | 'right';
+    accessibilityLabel: string;
+    disabled: boolean;
+    onPress: () => void;
+}) {
+    return (
+        <Pressable
+            onPress={onPress}
+            disabled={disabled}
+            hitSlop={Spacing.one}
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            accessibilityState={{ disabled }}
+            style={({ pressed }) => [styles.arrow, (pressed || disabled) && styles.arrowDimmed]}>
+            <Chevron direction={direction} />
+        </Pressable>
+    );
+}
+
 export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
     const theme = useTheme();
+    const showArrows = useWindowDimensions().width > ARROWS_MIN_WIDTH;
     const firstYear = FIRST_YEAR;
     const [lastYear] = useState(() => new Date().getFullYear() + YEARS_AHEAD);
     const yearCount = lastYear - firstYear + 1;
@@ -166,7 +203,54 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
     const [page, setPage] = useState(() => pageOf(value.year, value.month));
     const [jump, setJump] = useState(() => ({ page, key: 0 }));
 
-    const pages = Array.from({ length: pageCount }, (_, i) => i);
+    // Не виртуализированный список на все месяцы с 1900 года, а окно вокруг
+    // открытого: в вебе pagingEnabled — это CSS scroll-snap, и Safari заново
+    // привязывается к ближайшей странице всякий раз, когда виртуализация
+    // подменяет ячейки и распорки. Каждый раз — на страницу левее, так что
+    // календарь сам уезжал к 1900 году. Дошли до края окна — пересоздаём его.
+    const firstPage = Math.max(0, jump.page - PAGES_AROUND);
+    const lastPage = Math.min(pageCount - 1, jump.page + PAGES_AROUND);
+    const pages = Array.from({ length: lastPage - firstPage + 1 }, (_, i) => firstPage + i);
+
+    const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+    const initialOffset = (jump.page - firstPage) * width;
+    // Страница, на которой лента последний раз стояла ровно: от неё в вебе
+    // считается, в какую сторону листали.
+    const restPage = useRef(jump.page);
+    const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    useLayoutEffect(() => {
+        clearTimeout(settleTimer.current);
+        restPage.current = jump.page;
+        if (width > 0) scrollRef.current?.scrollTo({ x: initialOffset, animated: false });
+        // Только при пересоздании окна: дальше страницу листает пользователь.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jump.key, width]);
+
+    useEffect(() => () => clearTimeout(settleTimer.current), []);
+
+    const scrollToPage = (target: number) => {
+        scrollRef.current?.scrollTo({ x: (target - firstPage) * width, animated: true });
+    };
+
+    // CSS scroll-snap в Safari на маке листал несимметрично: лёгкий жест
+    // вправо докручивался до следующего месяца, а влево — отскакивал назад.
+    // Поэтому в вебе привязки нет, а докручиваем сами: любой заметный сдвиг
+    // от страницы, где стояли, — переход в ту сторону, куда тянули.
+    const settle = (x: number) => {
+        const position = x / width;
+        const nearest = Math.round(position);
+        if (Math.abs(position - nearest) * width < 1) {
+            restPage.current = firstPage + nearest;
+            return;
+        }
+
+        const rest = restPage.current - firstPage;
+        const shift = position - rest;
+        const local =
+            Math.abs(shift) < WEB_SETTLE_THRESHOLD ? rest : shift > 0 ? Math.ceil(position) : Math.floor(position);
+        scrollToPage(firstPage + Math.min(lastPage - firstPage, Math.max(0, local)));
+    };
     const visibleYear = firstYear + Math.floor(page / 12);
     const visibleMonth = (page % 12) + 1;
 
@@ -204,7 +288,22 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
         // для старых страниц и указывает не туда.
         if (width === 0 || Math.abs(event.nativeEvent.layoutMeasurement.width - width) > 1) return;
 
-        const index = Math.min(pageCount - 1, Math.max(0, Math.round(event.nativeEvent.contentOffset.x / width)));
+        const x = event.nativeEvent.contentOffset.x;
+        if (Platform.OS === 'web') {
+            clearTimeout(settleTimer.current);
+            settleTimer.current = setTimeout(() => settle(x), WEB_SETTLE_DELAY);
+        }
+
+        const local = Math.round(x / width);
+        const index = Math.min(lastPage, Math.max(firstPage, firstPage + local));
+
+        // Остановились на крайней странице окна, а дальше ещё есть месяцы.
+        const settled = Math.abs(x - local * width) < 1;
+        const atEdge = (index === firstPage && firstPage > 0) || (index === lastPage && lastPage < pageCount - 1);
+        if (settled && atEdge && index !== jump.page) {
+            setJump((current) => ({ page: index, key: current.key + 1 }));
+        }
+
         if (index === page) return;
         setPage(index);
         followYear(firstYear + Math.floor(index / 12));
@@ -242,13 +341,33 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
                     onSelect={changeYear}
                 />
 
-                {!selectedVisible && (
-                    <ReturnButton
-                        label={`${value.day} ${MONTHS_FOR_DATE[value.month - 1]}`}
-                        accessibilityLabel={`Вернуться к ${value.day} ${MONTHS_FOR_DATE[value.month - 1]}`}
-                        onPress={() => goTo(visibleYear, value.month)}
-                    />
-                )}
+                {/* Возврат к дате и стрелки — одной группой у правого края. */}
+                <View style={styles.trailing}>
+                    {!selectedVisible && (
+                        <ReturnButton
+                            label={`${value.day} ${MONTHS_FOR_DATE[value.month - 1]}`}
+                            accessibilityLabel={`Вернуться к ${value.day} ${MONTHS_FOR_DATE[value.month - 1]}`}
+                            onPress={() => goTo(visibleYear, value.month)}
+                        />
+                    )}
+
+                    {showArrows && (
+                        <View style={styles.arrows}>
+                            <ArrowButton
+                                direction="left"
+                                accessibilityLabel="Предыдущий месяц"
+                                disabled={page <= 0}
+                                onPress={() => scrollToPage(page - 1)}
+                            />
+                            <ArrowButton
+                                direction="right"
+                                accessibilityLabel="Следующий месяц"
+                                disabled={page >= pageCount - 1}
+                                onPress={() => scrollToPage(page + 1)}
+                            />
+                        </View>
+                    )}
+                </View>
             </View>
 
             <View style={styles.row}>
@@ -262,27 +381,26 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
             </View>
 
             {width > 0 && (
-                <FlatList
+                <ScrollView
                     key={jump.key}
-                    data={pages}
-                    keyExtractor={(index) => String(index)}
+                    ref={scrollRef}
                     horizontal
-                    pagingEnabled
+                    pagingEnabled={Platform.OS !== 'web'}
                     showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={jump.page}
-                    getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+                    contentOffset={{ x: initialOffset, y: 0 }}
                     onScroll={onScroll}
-                    scrollEventThrottle={32}
-                    renderItem={({ item }) => (
+                    scrollEventThrottle={32}>
+                    {pages.map((item) => (
                         <MonthGrid
+                            key={item}
                             year={firstYear + Math.floor(item / 12)}
                             month={(item % 12) + 1}
                             width={width}
                             value={value}
                             onChange={onChange}
                         />
-                    )}
-                />
+                    ))}
+                </ScrollView>
             )}
         </View>
     );
@@ -300,6 +418,25 @@ const styles = StyleSheet.create({
         gap: Spacing.three,
         paddingHorizontal: Spacing.three,
         paddingBottom: Spacing.three,
+    },
+    trailing: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 'auto',
+        gap: Spacing.two,
+    },
+    arrows: {
+        flexDirection: 'row',
+        gap: Spacing.one,
+    },
+    arrow: {
+        width: HEADER_ROW_HEIGHT,
+        height: HEADER_ROW_HEIGHT,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    arrowDimmed: {
+        opacity: 0.3,
     },
     picker: {
         flexDirection: 'row',

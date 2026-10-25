@@ -1,9 +1,15 @@
 import { getSecureItem, removeSecureItem, setSecureItem } from './secure-cache';
 
-export const API_URL = 'https://api.nmbook.ru/';
+/**
+ * Доступ к API — из переменных окружения: локально из `.env.local`
+ * (`eas env:pull`), на EAS — из его окружений (см. `environment` в eas.json).
+ * Expo вшивает `EXPO_PUBLIC_*` в бандл при сборке, поэтому обращаться к ним
+ * можно только так, напрямую: `process.env[name]` он не подставит.
+ */
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://api.nmbook.ru').replace(/\/?$/, '/');
 
-const API_LOGIN = '';
-const API_PASSWORD = '';
+const API_LOGIN = process.env.EXPO_PUBLIC_API_LOGIN ?? '';
+const API_PASSWORD = process.env.EXPO_PUBLIC_API_PASSWORD ?? '';
 
 const TOKEN_KEY = 'nmbook.accessToken';
 

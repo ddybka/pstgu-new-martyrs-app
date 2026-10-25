@@ -18,7 +18,7 @@
                 "dark": "./assets/images/icon-ios-dark.png",
                 "tinted": "./assets/images/icon-ios-tinted.png"
             },
-            "bundleIdentifier": "com.daniildybka.pamyatnovomuchenikov"
+            "bundleIdentifier": "com.dybka.pamyat-novomuchenikov"
         },
         "android": {
             "adaptiveIcon": {
@@ -27,7 +27,7 @@
                 "monochromeImage": "./assets/images/android-icon-monochrome.png"
             },
             "predictiveBackGestureEnabled": false,
-            "package": "com.daniil_dybka.pamyat_novomuchenikov"
+            "package": "com.dybka.pamyat_novomuchenikov"
         },
         "web": {
             "output": "static",

@@ -31,7 +31,8 @@ const MENU_DURATION = 220;
  * вертикальные отступы — как у кнопок вкладок и вида карточек.
  */
 const BUTTON_HEIGHT = 20 + Spacing.one * 2;
-const MENU_ICON_SIZE = 18;
+const MENU_ICON_SIZE = 28;
+const MENU_BUTTON_SIZE = 44;
 /** Отступ снизу у раскрытой компактной шапки. */
 const OPEN_MENU_PADDING_BOTTOM = 22;
 /** Скругление шапки и её кнопок — едва заметное, не капсулы. */
@@ -54,6 +55,9 @@ export default function AppTabs() {
                     </TabTrigger>
                     <TabTrigger name="map" href="/map" asChild>
                         <TabButton>Карта</TabButton>
+                    </TabTrigger>
+                    <TabTrigger name="search" href="/search" asChild>
+                        <TabButton>Поиск</TabButton>
                     </TabTrigger>
                 </CustomTabList>
             </TabList>
@@ -93,7 +97,7 @@ export function TabButton({ children, isFocused, ref, ...props }: TabTriggerSlot
 }
 
 /**
- * Кнопка меню компактной шапки: плашка, как у остальных кнопок, с иконкой
+ * Кнопка меню компактной шапки: без плашки, просто крупная иконка
  * Material Symbols — «меню» или «закрыть».
  */
 function MenuButton({ open, onPress }: { open: boolean; onPress: () => void }) {
@@ -108,7 +112,6 @@ function MenuButton({ open, onPress }: { open: boolean; onPress: () => void }) {
             accessibilityState={{ expanded: open }}
             style={({ pressed }) => [
                 styles.iconButton,
-                { backgroundColor: theme.backgroundElement },
                 pressed && styles.pressed,
             ]}>
             <SymbolView
@@ -291,10 +294,14 @@ const styles = StyleSheet.create({
         height: DOT_SIZE,
         borderRadius: DOT_SIZE / 2,
     },
+    // Кнопка выше строки с названием, но шапку не раздвигает: лишнее уходит
+    // в отрицательные поля, а иконка остаётся у правого края шапки.
     iconButton: {
-        height: BUTTON_HEIGHT,
-        paddingHorizontal: Spacing.two,
-        borderRadius: BUTTON_RADIUS,
+        width: MENU_BUTTON_SIZE,
+        height: MENU_BUTTON_SIZE,
+        marginVertical: -(MENU_BUTTON_SIZE - BRAND_SIZE) / 2,
+        marginRight: -(MENU_BUTTON_SIZE - MENU_ICON_SIZE) / 2,
+        borderRadius: MENU_BUTTON_SIZE / 2,
         alignItems: 'center',
         justifyContent: 'center',
     },
