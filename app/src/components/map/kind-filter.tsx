@@ -94,7 +94,8 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.one + Spacing.half,
         paddingHorizontal: Spacing.three,
         borderRadius: 999,
-        borderWidth: 1.5,
+        // Тонкая, как все линии в проекте (карточки, строки-кнопки, разделители).
+        borderWidth: StyleSheet.hairlineWidth,
         shadowColor: '#000',
         shadowOpacity: 0.08,
         shadowRadius: 6,

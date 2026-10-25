@@ -21,9 +21,10 @@ import { useTheme } from '@/hooks/use-theme';
  * полностью прозрачным и стирает размытие (см. `buildAppearance` в
  * react-native-screens). Поэтому с `material` его нет.
  *
- * На iOS до 26 фон — системное размытие. На iOS 26 у системной шапки своего
- * стекла нет вовсе: шапка остаётся прозрачной, а стекло под неё кладёт сам
- * экран (`HeaderGlass`).
+ * На iOS до 26 фон — системное размытие. На iOS 26 — системный край
+ * прокрутки (`scrollEdgeEffects`, мягкий градиент под шапкой): его рисует
+ * UIScrollView экрана, поэтому экран без прокрутки оборачивает содержимое в
+ * неподвижную (см. EdgeEffectHost на карте).
  */
 export function useStackHeaderOptions(title: string, { large = true, material = false } = {}) {
     const isDark = useColorScheme() === 'dark';
@@ -42,6 +43,7 @@ export function useStackHeaderOptions(title: string, { large = true, material = 
             // С `material` — материал всегда, и у края тоже.
             ...(material ? null : { headerLargeStyle: { backgroundColor: 'transparent' } }),
             headerBlurEffect: isLiquidGlassAvailable() ? undefined : blurEffect,
+            ...(material ? { scrollEdgeEffects: { top: 'soft' as const } } : null),
             headerLargeTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
             headerTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
         } as const;

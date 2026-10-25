@@ -1,11 +1,10 @@
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Suspense, lazy, useMemo, useState, useSyncExternalStore } from 'react';
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlockLoading } from '@/components/block-loading';
-import { HeaderGlass } from '@/components/header-glass';
 import { EventsPanel } from '@/components/map/events-panel';
 import { KindFilter } from '@/components/map/kind-filter';
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +16,23 @@ import { normalizePersonNumber } from '@/hooks/use-person';
 const MartyrsMap = lazy(() => import('@/components/map/martyrs-map'));
 
 const NO_KINDS: ReadonlySet<string> = new Set();
+
+/** См. комментарий у места использования. На других платформах — просто обёртка. */
+function EdgeEffectHost({ children }: { children: React.ReactNode }) {
+    if (Platform.OS !== 'ios') return <>{children}</>;
+
+    return (
+        <ScrollView
+            style={styles.edgeHost}
+            contentContainerStyle={styles.edgeHost}
+            scrollEnabled={false}
+            bounces={false}
+            contentInsetAdjustmentBehavior="never"
+            automaticallyAdjustsScrollIndicatorInsets={false}>
+            {children}
+        </ScrollView>
+    );
+}
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
     const isMissingNativeModule = /TurboModuleRegistry|could not be found/.test(error.message);
@@ -103,17 +119,22 @@ export default function MapScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            <Suspense fallback={<BlockLoading />}>
-                <MartyrsMap
-                    points={visible}
-                    bounds={boundsOf(focusPoints)}
-                    selected={selectedIds ?? focusIds}
-                    onEventsPress={setSelectedIds}
-                />
-            </Suspense>
-
-            {/* Стекло под прозрачной шапкой — на iOS 26 (см. HeaderGlass). */}
-            <HeaderGlass />
+            {/* Неподвижная прокрутка вокруг карты — только ради системного края
+                под шапкой на iOS 26 (градиентное «стекло», UIScrollEdgeEffect).
+                Его рисует только UIScrollView, и react-native-screens ищет его
+                по цепочке первых потомков экрана, — поэтому она первая.
+                Прокрутка выключена, и жесты достаются карте; отступы под шапку
+                выключены, чтобы карта с самого начала была под ней. */}
+            <EdgeEffectHost>
+                <Suspense fallback={<BlockLoading />}>
+                    <MartyrsMap
+                        points={visible}
+                        bounds={boundsOf(focusPoints)}
+                        selected={selectedIds ?? focusIds}
+                        onEventsPress={setSelectedIds}
+                    />
+                </Suspense>
+            </EdgeEffectHost>
 
             <KindFilter
                 hidden={hidden}
@@ -142,6 +163,9 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
     container: {
+        flex: 1,
+    },
+    edgeHost: {
         flex: 1,
     },
     filter: {
