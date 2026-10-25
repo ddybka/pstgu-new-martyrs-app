@@ -12,6 +12,13 @@ import { useTheme } from "@/hooks/use-theme";
 import { describeError } from "@/utils/api-fetch";
 
 /**
+ * Сколько экранов карточек держать смонтированными (вместе с видимым): по
+ * три в обе стороны. Шире не нужно: карточка без SwiftUI-хоста, создать её
+ * заново дёшево, а узкое окно бережёт память в днях с сотней фотографий.
+ */
+const WINDOW_SIZE = 7;
+
+/**
  * Список дел — общий для главной и календаря.
  *
  * Состояния списка живут здесь, а не на экранах: скелеты, пустой день, состояие
@@ -22,6 +29,7 @@ export function ShowCards({
     header,
     footer,
     loading = false,
+    loadingMore = false,
     refreshing = false,
     onRefresh,
     stale = false,
@@ -34,6 +42,8 @@ export function ShowCards({
     header?: ReactElement;
     footer?: ReactElement;
     loading?: boolean;
+    /** Первая страница на экране, остальные ещё грузятся. */
+    loadingMore?: boolean;
     refreshing?: boolean;
     onRefresh?: () => void;
     stale?: boolean;
@@ -51,6 +61,11 @@ export function ShowCards({
         </>
     );
 
+    // Пока дописываются страницы, под списком — заглушка карточки, а не
+    // кнопки подвала: иначе, долистав до конца первой страницы, человек
+    // увидел бы подвал, а его тут же унесло бы вниз пришедшими карточками.
+    const listFooter = loadingMore ? <PersonCardsSkeleton count={2} /> : footer;
+
     return (
         <FlatList
             style={[styles.list, { backgroundColor: theme.background }]}
@@ -64,16 +79,14 @@ export function ShowCards({
             contentInsetAdjustmentBehavior="automatic"
             data={loading ? [] : persons}
             keyExtractor={(person, index) => String(person.Номер ?? index)}
-            // Карточка тяжёлая: на iOS это свой SwiftUI-хост контекстного меню
-            // с двумя деревьями внутри — самой карточкой и её копией для
-            // превью. По умолчанию FlatList держит смонтированными по десять
-            // экранов в обе стороны, и в дни с полусотней новомучеников
-            // (30 октября) это были почти все карточки разом — список лагал.
-            initialNumToRender={6}
-            maxToRenderPerBatch={4}
-            windowSize={5}
+            // Карточки досоздаются небольшими пачками с паузой — без
+            // запинок посреди прокрутки.
+            initialNumToRender={5}
+            maxToRenderPerBatch={2}
+            updateCellsBatchingPeriod={80}
+            windowSize={WINDOW_SIZE}
             ListHeaderComponent={listHeader}
-            ListFooterComponent={footer}
+            ListFooterComponent={listFooter}
             renderItem={({ item }) => (
                 <PersonCard person={item} />
             )}

@@ -6,8 +6,17 @@ export type PersonCardMenuProps = {
     person: Person;
     name: string;
     preview: ReactElement;
+    /** Высота карточки — превью в меню iOS иначе занимает весь экран. */
+    previewHeight?: number;
     children: (onLongPress?: () => void) => ReactElement;
 };
+
+/**
+ * Меню само открывает страницу новомученика по нажатию на карточку (iOS:
+ * карточка — это `Link`). Тогда своего перехода у карточки быть не должно:
+ * `Link` складывает обработчики нажатия, и страница открылась бы дважды.
+ */
+export const CARD_MENU_NAVIGATES = false;
 
 /**
  * Меню карточки по долгому нажатию: «Поделиться» и «Уточнить сведения» — те

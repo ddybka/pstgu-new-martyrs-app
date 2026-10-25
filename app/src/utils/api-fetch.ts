@@ -25,13 +25,25 @@ const EXPIRY_SKEW_MS = 60_000;
 
 /**
  * Сколько ждём ответа от сервера.
+ *
+ * Дольше ждать незачем: экран к этому времени уже показывает сохранённую
+ * копию (см. `useApiResource`), а без неё десять секунд скелетов — и так
+ * предел терпения.
  */
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 /**
  * Паузы перед повторными попытками связи с сервером при сетевых ошибках.
  */
 const RETRY_DELAYS_MS = [400, 1200];
+
+/**
+ * Повторяются только быстрые отказы — сеть пропала на миг, соединение
+ * сбросилось сразу. Если сервер молчал до таймаута или отказ пришёл не сразу,
+ * повтор почти наверняка закончится тем же, только ещё через столько же:
+ * раньше три попытки по 15 секунд давали почти минуту ожидания.
+ */
+const RETRY_FAST_FAILURE_MS = 3_000;
 
 /** Сервер ответил не так, как ожидалось. */
 export class ApiError extends Error {
@@ -111,10 +123,13 @@ async function withRetry<T>(run: () => Promise<T>): Promise<T> {
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+        const startedAt = Date.now();
+
         try {
             return await run();
         } catch (error) {
             if (!(error instanceof NetworkError)) throw error;
+            if (error.reason === 'timeout' || Date.now() - startedAt > RETRY_FAST_FAILURE_MS) throw error;
 
             lastError = error;
 
@@ -155,6 +170,11 @@ async function readCachedToken(): Promise<CachedToken | null> {
     } catch {
         return null;
     }
+}
+
+/** Токен, если он уже в памяти и не истёк, — без похода в SecureStore. */
+export function peekToken(): string | null {
+    return isUsable(memoryToken) ? memoryToken.token : null;
 }
 
 export async function getToken(): Promise<string | null> {

@@ -11,11 +11,13 @@ import { ApiError, apiFetch } from '@/utils/api-fetch';
  * всегда перезаписывает сохранённую копию целиком, а не дополняет её: пропавшие
  * записи пропадают и здесь.
  *
- * Кэш — на случай «сети нет». Он показывается, когда запрос не удался, и экран
- * честно говорит, от какого числа данные.
+ * Сохранённая копия показывается сразу, какой бы старой она ни была, а запрос
+ * тем временем идёт: дни памяти и биографии меняются редко, и вчерашний
+ * список лучше скелетов на всё время ожидания сети. Пришёл ответ — он
+ * заменяет копию. Не пришёл — экран честно говорит, от какого числа данные.
  */
 
-/** Столько кэш считается свежим и показывается сразу, без скелетов. */
+/** Столько данные считаются свежими: по возвращении в приложение не обновляются. */
 const FRESH_MS = 10 * 60 * 1000;
 
 export type ApiResource<T> = {
@@ -53,13 +55,23 @@ function initialFor<T>(key: string | null): State<T> {
 
 export type UseApiResourceOptions<T> = {
     freshMs?: number;
-    /** Должен быть объявлен вне компонента */
-    fetcher?: (key: string) => Promise<T>;
+    /**
+     * Должен быть объявлен вне компонента.
+     *
+     * `onPartial` — для ответов, которые собираются по частям (страницы
+     * списка): первая часть показывается сразу, не дожидаясь остальных.
+     */
+    fetcher?: (key: string, onPartial: (partial: T) => void) => Promise<T>;
 };
+
+/** Обычный запрос по ключу-адресу; второй аргумент `fetcher` ему не нужен. */
+function fetchByKey<T>(key: string) {
+    return apiFetch<T>(key);
+}
 
 export function useApiResource<T>(
     key: string | null,
-    { freshMs = FRESH_MS, fetcher = apiFetch<T> }: UseApiResourceOptions<T> = {}
+    { freshMs = FRESH_MS, fetcher = fetchByKey<T> }: UseApiResourceOptions<T> = {}
 ): ApiResource<T> {
     // Состояние хранится вместе с ключом, которому оно принадлежит, и
     // сбрасывается прямо в отрисовке, как только ключ сменился. Так на экране
@@ -102,7 +114,7 @@ export function useApiResource<T>(
                 const cached = await readCache<T>(key);
                 if (!alive()) return;
 
-                if (cached && Date.now() - cached.fetchedAt < freshMs) {
+                if (cached) {
                     setState((prev) => ({
                         ...prev,
                         data: cached.data,
@@ -112,19 +124,33 @@ export function useApiResource<T>(
                 }
             }
 
+            // Часть ответа идёт на экран, только пока на нём пусто — вместо
+            // скелетов. Поверх уже показанного списка (кэш, обновление
+            // свайпом) она не кладётся: список сначала укоротился бы до
+            // первой страницы, а потом вырос обратно.
+            const onPartial = (partial: T) => {
+                if (!alive()) return;
+                setState((prev) => (prev.data === null ? { ...prev, data: partial, loading: false } : prev));
+            };
+
             try {
-                const data = await fetcher(key);
+                const data = await fetcher(key, onPartial);
                 if (!alive()) return;
 
-                setState({
-                    data,
+                const serialized = JSON.stringify(data);
+
+                setState((prev) => ({
+                    // Ответ, совпавший с уже показанной копией, не подменяет
+                    // её: новый объект с теми же данными перерисовал бы все
+                    // карточки списка, а на iOS это сотня нативных хостов.
+                    data: prev.data !== null && JSON.stringify(prev.data) === serialized ? prev.data : data,
                     loading: false,
                     refreshing: false,
                     error: null,
                     stale: false,
                     absent: false,
                     updatedAt: Date.now(),
-                });
+                }));
 
                 void writeCache(key, data);
             } catch (error) {
@@ -155,15 +181,23 @@ export function useApiResource<T>(
                 );
             }
         },
-        [key, freshMs, fetcher, setState]
+        [key, fetcher, setState]
     );
 
     useEffect(() => {
         if (key === null) return;
 
-        void run('initial');
+        // Запуск — из промиса, а не прямо в теле эффекта: `run` меняет
+        // состояние, и синхронный вызов React Compiler считает каскадной
+        // отрисовкой. Флаг не даёт стартовать загрузке ключа, который уже
+        // успел смениться.
+        let active = true;
+        void Promise.resolve().then(() => {
+            if (active) return run('initial');
+        });
 
         return () => {
+            active = false;
             generation.current += 1;
         };
     }, [key, run]);

@@ -102,6 +102,7 @@ export default function MapScreen() {
     // Пришли со страницы новомученика — его точки обведены, пока не выбрано
     // что-то другое.
     const focusIds = useMemo(() => focusPoints.map((point) => point.id), [focusPoints]);
+    const focusBounds = useMemo(() => boundsOf(focusPoints), [focusPoints]);
 
     const isClient = useSyncExternalStore(
         () => () => { },
@@ -109,7 +110,10 @@ export default function MapScreen() {
         () => false
     );
 
-    if (!isClient) return <BlockLoading />;
+    // Точки читаются асинхронно (см. `use-map-points`). Камера ставится по
+    // ним один раз, при создании карты, поэтому без точек карту не создаём:
+    // иначе по ссылке «на общей карте» она открылась бы не на том человеке.
+    if (!isClient || points.length === 0) return <BlockLoading />;
 
     // Нижний край: на нативе карта уходит под плавающую панель вкладок,
     // в вебе панели внизу нет — шапка у него сверху и тоже плавающая.
@@ -130,7 +134,7 @@ export default function MapScreen() {
                 <Suspense fallback={<BlockLoading />}>
                     <MartyrsMap
                         points={visible}
-                        bounds={boundsOf(focusPoints)}
+                        bounds={focusBounds}
                         selected={selectedIds ?? focusIds}
                         onEventsPress={setSelectedIds}
                     />

@@ -10,14 +10,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { describeError } from '@/utils/api-fetch';
 import { plural } from '@/utils/plural';
 
-const PLACEHOLDER = 'Имя, место, событие';
+const PLACEHOLDER = 'Найти информацию'
 
-/**
- * Поиск по биографиям.
- *
- * На iOS строка поиска — системная, в шапке: вкладка поиска на iOS 26 сама
- * ставит в неё курсор. На Android и в вебе — своё поле над выдачей.
- */
 export default function SearchScreen() {
     const theme = useTheme();
     const [query, setQuery] = useState('');
@@ -27,7 +21,7 @@ export default function SearchScreen() {
     const status = search.idle ? null : search.offline ? (
         <View style={[styles.notice, { backgroundColor: theme.backgroundElement }]}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.noticeText}>
-                Нет связи с сервером — ищем только по ФИО
+                Нет связи с сервером, ищем только по ФИО
             </ThemedText>
             <Pressable onPress={search.retry} hitSlop={Spacing.two} accessibilityRole="button">
                 <ThemedText type="linkPrimary">Повторить</ThemedText>
@@ -62,11 +56,7 @@ export default function SearchScreen() {
     const empty = search.idle ? (
         <View style={styles.hint}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.hintText}>
-                Поиск идёт по полному тексту биографий: именам, местам, событиям.
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.hintText}>
-                Слова ищутся в любой форме: «Бутово» найдёт и «на Бутовском полигоне». Звёздочка на конце
-                ищет по началу слова: «расстрел*».
+                Поиск идёт по полному тексту биографий: именам, местам и событиям.
             </ThemedText>
         </View>
     ) : search.loading ? (
@@ -149,6 +139,9 @@ const styles = StyleSheet.create({
     count: {
         paddingHorizontal: Spacing.three,
         paddingBottom: Spacing.two,
+        fontWeight: 400,
+        textAlign: 'center',
+        paddingTop: Spacing.one
     },
     notice: {
         flexDirection: 'row',
@@ -169,7 +162,8 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.five,
     },
     hintText: {
-        textAlign: 'center',
+
+        fontWeight: '400',
     },
     spinner: {
         paddingVertical: Spacing.five,

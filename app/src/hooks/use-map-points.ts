@@ -2,7 +2,6 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import type { MartyrPoint } from '@/components/map/map-config';
-import bundled from '@/data/map-points.json';
 import { readCache, writeCache } from '@/utils/api-cache';
 
 /**
@@ -17,7 +16,7 @@ import { readCache, writeCache } from '@/utils/api-cache';
  * Данных три слоя, и порядок между ними такой.
  *
  * 1. Снимок в бандле (`src/data/map-points.json`) — первый кадр: карта рисуется
- *    сразу, без сети и без пустого экрана. Пересобирается скриптом
+ *    без сети и без пустого экрана. Пересобирается скриптом
  *    `scripts/build-map-points.mjs`.
  * 2. Сохранённая копия последней загрузки — если она новее снимка в бандле.
  * 3. Свежая выдача из сети, раз в сутки и в фоне. Она побеждает всегда:
@@ -98,17 +97,52 @@ function condense(raw: RawPoint[]): Snapshot {
     return { source: SOURCE, builtAt: Date.now(), types, titles, points };
 }
 
-const BUNDLED = bundled as unknown as Snapshot;
+/**
+ * Снимок в бандле подключается динамическим импортом, а не сверху модуля.
+ *
+ * Это почти два мегабайта: статический импорт разбирал их при запуске
+ * приложения, даже если до карты не доходили, а в вебе клал их в общий
+ * скрипт, который качается на любой странице. Так в вебе снимок уходит
+ * в отдельный файл, а на нативе разбирается только тогда, когда понадобился
+ * (см. `preloadMapPoints`).
+ */
+async function loadBundled(): Promise<Snapshot> {
+    const module = await import('@/data/map-points.json');
+    return ((module as { default?: unknown }).default ?? module) as Snapshot;
+}
 
-let points: MartyrPoint[] = toPoints(BUNDLED);
-let updatedAt: number = BUNDLED.builtAt ?? 0;
+const NO_POINTS: MartyrPoint[] = [];
+
+let current: Snapshot | null = null;
+let points: MartyrPoint[] = NO_POINTS;
+let updatedAt = 0;
 
 const listeners = new Set<() => void>();
 
 function publish(snapshot: Snapshot, fetchedAt: number) {
+    current = snapshot;
     points = toPoints(snapshot);
     updatedAt = fetchedAt;
     listeners.forEach((listener) => listener());
+}
+
+/**
+ * Свежая выдача обычно совпадает с той, что уже на экране: точки правят
+ * редко. Тогда публиковать её незачем — карта заново разбирала бы и
+ * кластеризовала восемь тысяч точек, а выбранные события сбрасывались бы.
+ */
+function sameSnapshot(a: Snapshot, b: Snapshot) {
+    if (a.points.length !== b.points.length) return false;
+    if (a.types.join('\n') !== b.types.join('\n')) return false;
+
+    for (let i = 0; i < a.points.length; i += 1) {
+        const x = a.points[i];
+        const y = b.points[i];
+        for (let j = 0; j < x.length; j += 1) if (x[j] !== y[j]) return false;
+        if (a.titles[x[0]] !== b.titles[y[0]]) return false;
+    }
+
+    return true;
 }
 
 function subscribe(listener: () => void) {
@@ -138,34 +172,54 @@ async function fetchPoints(): Promise<Snapshot> {
 }
 
 let loading: Promise<void> | null = null;
-let restored = false;
+let restored: Promise<void> | null = null;
+
+/**
+ * Первые точки — из сохранённой копии или снимка в бандле, что новее.
+ * Один раз за запуск: дальше точки живут в памяти модуля.
+ */
+function restore(): Promise<void> {
+    restored ??= (async () => {
+        const [cached, bundled] = await Promise.all([readCache<Snapshot>(CACHE_KEY), loadBundled()]);
+        const builtAt = bundled.builtAt ?? 0;
+
+        if (cached && cached.fetchedAt > builtAt) publish(cached.data, cached.fetchedAt);
+        else publish(bundled, builtAt);
+    })().catch((error) => {
+        console.warn('Не удалось прочитать точки карты:', error);
+    });
+
+    return restored;
+}
 
 /**
  * Поднять копию из кэша и, если пора, сходить за свежей.
  *
- * Вызывается со всех экранов с картой, но работает один раз: повторные вызовы
- * ждут ту же загрузку.
+ * Вызывается со всех экранов с картой и заранее, после запуска (см.
+ * `preloadMapPoints`), но работает один раз: повторные вызовы ждут ту же
+ * загрузку.
+ *
+ * Свежая выдача запрашивается, когда показанным точкам больше суток: снимку
+ * в бандле — со сборки приложения, сохранённой копии — с прошлой загрузки.
  */
 export function loadMapPoints(force = false): Promise<void> {
     if (loading) return loading;
 
     loading = (async () => {
-        if (!restored) {
-            restored = true;
-
-            const cached = await readCache<Snapshot>(CACHE_KEY);
-
-            if (cached && cached.fetchedAt > (BUNDLED.builtAt ?? 0)) {
-                publish(cached.data, cached.fetchedAt);
-            }
-        }
+        await restore();
 
         if (Platform.OS === 'web') return;
         if (!force && Date.now() - updatedAt < REFRESH_AFTER_MS) return;
 
         try {
             const snapshot = await fetchPoints();
-            publish(snapshot, Date.now());
+            const fetchedAt = Date.now();
+
+            if (current && sameSnapshot(current, snapshot)) updatedAt = fetchedAt;
+            else publish(snapshot, fetchedAt);
+
+            // Копия пишется и без изменений — ради даты: иначе после
+            // перезапуска точки снова считались бы устаревшими.
             void writeCache(CACHE_KEY, snapshot);
         } catch (error) {
             console.warn('Не удалось обновить точки карты:', error);
@@ -177,7 +231,16 @@ export function loadMapPoints(force = false): Promise<void> {
     return loading;
 }
 
-/** Все точки — для вкладки карты. */
+/**
+ * Подготовить карту заранее, пока пользователь на первом экране: точки
+ * разобраны, стиль подложки скачан. Иначе всё это начиналось бы в момент
+ * открытия вкладки, и карта долго стояла бы пустой.
+ */
+export function preloadMapPoints() {
+    void loadMapPoints();
+}
+
+/** Все точки — для вкладки карты. Пока точки не прочитаны — пустой список. */
 export function useMapPoints(): MartyrPoint[] {
     useEffect(() => {
         void loadMapPoints();
@@ -186,14 +249,33 @@ export function useMapPoints(): MartyrPoint[] {
     return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+/**
+ * Точки по номерам дел — один проход по всему списку на все страницы
+ * новомучеников, а не фильтр восьми тысяч точек на каждую.
+ */
+const byNumberCache = new WeakMap<MartyrPoint[], Map<number, MartyrPoint[]>>();
+
+function pointsOf(all: MartyrPoint[], number: number) {
+    let byNumber = byNumberCache.get(all);
+
+    if (!byNumber) {
+        byNumber = new Map();
+        for (const point of all) {
+            const list = byNumber.get(point.number);
+            if (list) list.push(point);
+            else byNumber.set(point.number, [point]);
+        }
+        byNumberCache.set(all, byNumber);
+    }
+
+    return byNumber.get(number) ?? NO_POINTS;
+}
+
 /** Точки одного дела, для карты на странице новомученика. */
 export function usePersonMapPoints(number: number | null): MartyrPoint[] {
     const all = useMapPoints();
 
-    return useMemo(() => {
-        if (number === null) return [];
-        return all.filter((point) => point.number === number);
-    }, [all, number]);
+    return useMemo(() => (number === null ? NO_POINTS : pointsOf(all, number)), [all, number]);
 }
 
 export function boundsOf(points: MartyrPoint[]): [[number, number], [number, number]] | null {

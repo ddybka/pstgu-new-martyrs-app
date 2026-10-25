@@ -21,6 +21,8 @@ const KIND_LABELS: Record<string, string> = Object.fromEntries(
     POINT_KINDS.map(({ kind, label }) => [kind, label])
 );
 
+const NOTHING_SELECTED: readonly number[] = [];
+
 function sameIds(a: readonly number[], b: readonly number[]) {
     return a.length === b.length && a.every((id) => b.includes(id));
 }
@@ -52,6 +54,8 @@ export function PersonMap({
     // в нём должно оставаться прежнее содержимое.
     const [shownIds, setShownIds] = useState<number[]>([]);
 
+    const bounds = useMemo(() => boundsOf(points), [points]);
+
     const shown = useMemo(() => {
         const wanted = new Set(shownIds);
         return points
@@ -80,9 +84,9 @@ export function PersonMap({
                 <Suspense fallback={null}>
                     <MartyrsMap
                         points={points}
-                        bounds={boundsOf(points)}
+                        bounds={bounds}
                         interactive={false}
-                        selected={open ? shownIds : []}
+                        selected={open ? shownIds : NOTHING_SELECTED}
                         onEventsPress={select}
                     />
                 </Suspense>

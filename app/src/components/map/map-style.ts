@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 
 import { MAP_FONTS, MAP_STYLES } from './map-config';
 
+import { readCache, writeCache } from '@/utils/api-cache';
+
 /**
  * Правка чужого стиля под нужды проекта.
  *
@@ -189,19 +191,79 @@ export function applyMapRules(style: StyleSpecification): StyleSpecification {
  */
 const cache = new Map<string, Promise<StyleSpecification | string>>();
 
+/**
+ * Уже готовые стили — чтобы карта, открытая после предзагрузки, получила
+ * стиль в первой же отрисовке, а не кадром позже, после промиса.
+ */
+const ready = new Map<string, StyleSpecification | string>();
+
+/** Сколько сохранённая копия стиля живёт без обновления. */
+const STYLE_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+function styleCacheKey(url: string) {
+    return `map-style-v1:${url}`;
+}
+
+/**
+ * Сколько ждём стиль, когда сохранённой копии нет. Дальше карте отдаётся
+ * исходный адрес: пусть она грузит стиль сама, чем стоит пустой.
+ */
+const STYLE_TIMEOUT_MS = 10_000;
+
+async function fetchStyle(url: string): Promise<StyleSpecification> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), STYLE_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`${url} ответил ${response.status}`);
+
+        const style = applyMapRules((await response.json()) as StyleSpecification);
+        void writeCache(styleCacheKey(url), style);
+        return style;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * Стиль берётся из сохранённой копии, если она есть, а сеть только обновляет
+ * её к следующему запуску. Раньше карта ждала скачивания стиля при каждом
+ * запуске и до тех пор стояла пустой — на медленном мобильном интернете это
+ * были секунды. Подменять стиль уже показанной карты не нужно: подложка
+ * меняется редко, а пересборка карты на глазах заметнее, чем день старых
+ * границ.
+ */
+async function resolveStyle(url: string): Promise<StyleSpecification | string> {
+    const cached = await readCache<StyleSpecification>(styleCacheKey(url));
+
+    if (cached) {
+        if (Date.now() - cached.fetchedAt > STYLE_REFRESH_MS) {
+            fetchStyle(url).catch(() => { });
+        }
+        return cached.data;
+    }
+
+    // Строка вместо стиля — это отказ: скачать не вышло, и карте отдаётся
+    // исходный адрес. Пусть с чужими границами, но карта, а не пустой экран.
+    return fetchStyle(url).catch(() => url);
+}
+
 function loadStyle(url: string): Promise<StyleSpecification | string> {
     const started = cache.get(url);
     if (started) return started;
 
-    // Строка вместо стиля — это отказ: скачать не вышло, и карте отдаётся
-    // исходный адрес. Пусть с чужими границами, но карта, а не пустой экран.
-    const loading = fetch(url)
-        .then((response) => response.json())
-        .then(applyMapRules)
-        .catch(() => url);
-
+    const loading = resolveStyle(url).then((style) => {
+        ready.set(url, style);
+        return style;
+    });
     cache.set(url, loading);
     return loading;
+}
+
+/** Скачать стиль заранее, до того как откроют карту (см. `preloadMapPoints`). */
+export function preloadMapStyle(isDark: boolean) {
+    void loadStyle(MAP_STYLES[isDark ? 'dark' : 'light']);
 }
 
 export type LoadedMapStyle = {
@@ -224,13 +286,18 @@ export type LoadedMapStyle = {
  */
 export function useMapStyle(isDark: boolean): LoadedMapStyle | null {
     const scheme = isDark ? 'dark' : 'light';
-    const [loaded, setLoaded] = useState<LoadedMapStyle | null>(null);
+    const [loaded, setLoaded] = useState<LoadedMapStyle | null>(() => {
+        const style = ready.get(MAP_STYLES[scheme]);
+        return style ? { style, font: MAP_FONTS[scheme] } : null;
+    });
 
     useEffect(() => {
         let cancelled = false;
 
         loadStyle(MAP_STYLES[scheme]).then((style) => {
-            if (!cancelled) setLoaded({ style, font: MAP_FONTS[scheme] });
+            if (cancelled) return;
+            // Тот же стиль, что уже взят из готовых, — без лишней отрисовки.
+            setLoaded((prev) => (prev?.style === style ? prev : { style, font: MAP_FONTS[scheme] }));
         });
 
         return () => {

@@ -1,5 +1,5 @@
 import { MenuView, type MenuComponentRef } from '@expo/ui/community/menu';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { PersonCardMenuProps } from './person-card-menu';
@@ -16,16 +16,22 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
  * карточка — свой `Pressable` с переходом по нажатию, и долгое нажатие до
  * обёртки вокруг неё не дошло бы.
 */
+/** См. `person-card-menu.tsx`. */
+export const CARD_MENU_NAVIGATES = false;
+
 export function PersonCardMenu({ person, name, children }: PersonCardMenuProps) {
-    const menu = useRef<MenuComponentRef>(null);
+    // Меню — в состоянии через ref-колбэк, а не в `useRef`: обработчик долгого
+    // нажатия создаётся в отрисовке, и чтение `ref.current` там React Compiler
+    // запрещает (и пропускает компонент без оптимизаций).
+    const [menu, setMenu] = useState<MenuComponentRef | null>(null);
     const colorScheme = useColorScheme();
     const actions = personMenuItems(person.Номер, name);
 
     return (
         <View>
-            {children(() => menu.current?.show())}
+            {children(menu ? () => menu.show() : undefined)}
             <MenuView
-                ref={menu}
+                ref={setMenu}
                 colorScheme={colorScheme}
                 shouldOpenOnLongPress
                 style={styles.anchor}

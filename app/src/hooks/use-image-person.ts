@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ImageSource } from 'expo-image';
 
-import { API_URL, ensureToken } from '@/utils/api-fetch';
+import { API_URL, ensureToken, peekToken } from '@/utils/api-fetch';
 
 export type PersonPhoto = {
     имя_файла?: string;
@@ -55,20 +55,18 @@ export function usePersonPhotos(photos: unknown, options: UsePersonPhotosOptions
     );
     const hasPhotos = items.length > 0;
 
-    const [token, setToken] = useState<string | null>(null);
-    const [loading, setLoading] = useState(hasPhotos);
+    // Токен почти всегда уже в памяти: его получают при запуске (см.
+    // `LoginProvider`). Тогда адреса снимков готовы в первой же отрисовке, и
+    // карточка не перерисовывается ещё дважды после монтирования — в списке
+    // на сотню карточек это и были лишние кадры при прокрутке.
+    const [token, setToken] = useState<string | null>(peekToken);
     const [error, setError] = useState<Error | null>(null);
+    const needsToken = hasPhotos && token === null;
 
     useEffect(() => {
-        if (!hasPhotos) {
-            setLoading(false);
-            setError(null);
-            return;
-        }
+        if (!needsToken) return;
 
         let cancelled = false;
-        setLoading(true);
-        setError(null);
 
         ensureToken()
             .then((value) => {
@@ -78,16 +76,14 @@ export function usePersonPhotos(photos: unknown, options: UsePersonPhotosOptions
                 if (cancelled) return;
                 console.error('Ошибка загрузки изображения:', err);
                 setError(err instanceof Error ? err : new Error(String(err)));
-                setToken(null);
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
             });
 
         return () => {
             cancelled = true;
         };
-    }, [hasPhotos]);
+    }, [needsToken]);
+
+    const loading = needsToken && error === null;
 
     const result: PersonPhotoItem[] = useMemo(
         () =>

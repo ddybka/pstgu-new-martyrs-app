@@ -17,7 +17,8 @@ import {
     featureId,
     idsAtSamePlace,
     isSinglePoint,
-    toFeatureCollection,
+    selectionFilter,
+    toGeoJsonString,
     type MartyrsMapProps,
 } from './map-config';
 import { useMapStyle } from './map-style';
@@ -44,19 +45,16 @@ export default function MartyrsMap({
     const mapStyle = useMapStyle(isDark);
     const sourceRef = useRef<React.ComponentRef<typeof GeoJSONSource>>(null);
 
-    const data = useMemo(() => toFeatureCollection(points), [points]);
+    const data = useMemo(() => toGeoJsonString(points), [points]);
+    // Выделение — отдельно от остальных слоёв: нажатие на точку меняет только
+    // фильтр обводки, а кластеры, точки и подписи остаются прежними объектами.
     const layers = useMemo(
         () =>
             mapStyle &&
-            buildLayers(
-                theme.text,
-                theme.background,
-                mapStyle.font,
-                KIND_COLORS[isDark ? 'dark' : 'light'],
-                selected
-            ),
-        [theme.text, theme.background, mapStyle, isDark, selected]
+            buildLayers(theme.text, theme.background, mapStyle.font, KIND_COLORS[isDark ? 'dark' : 'light']),
+        [theme.text, theme.background, mapStyle, isDark]
     );
+    const selectedFilter = useMemo(() => selectionFilter(selected ?? []), [selected]);
 
     // Камера ставится один раз, начальным состоянием: если задавать её пропсом
     // на каждый кадр, любое движение пальцем тут же откатывалось бы назад.
@@ -138,7 +136,7 @@ export default function MartyrsMap({
                     if (id !== null) onEventsPress(idsAtSamePlace(points, id));
                 }}>
                 <Layer id={CLUSTER_LAYER_ID} {...layers.clusters} />
-                <Layer id={SELECTED_LAYER_ID} {...layers.selection} />
+                <Layer id={SELECTED_LAYER_ID} {...layers.selection} filter={selectedFilter} />
                 <Layer id={POINT_LAYER_ID} {...layers.points} />
                 <Layer id={CLUSTER_COUNT_LAYER_ID} {...layers.clusterCount} />
             </GeoJSONSource>

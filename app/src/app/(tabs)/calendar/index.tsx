@@ -56,7 +56,7 @@ export default function CalendarScreen() {
         void writeStored(STORAGE_KEY, JSON.stringify(date));
     };
 
-    const { persons, loading, refreshing, error, stale, updatedAt, refresh } = usePersons({
+    const { persons, total, hasNext, loading, refreshing, error, stale, updatedAt, refresh } = usePersons({
         filter: dayOfYearFilter(selected.month, selected.day),
     });
 
@@ -66,7 +66,7 @@ export default function CalendarScreen() {
 
             <View style={styles.titleRow}>
                 <ThemedText type="small" themeColor="textSecondary" style={styles.dateTitle}>
-                    {formatMartyrsCount(persons.length, `${selected.day} ${MONTHS_FOR_DATE[selected.month - 1].toLowerCase()}`)}
+                    {formatMartyrsCount(total, `${selected.day} ${MONTHS_FOR_DATE[selected.month - 1].toLowerCase()}`)}
                 </ThemedText>
                 <TabHeaderMenu />
             </View>
@@ -94,6 +94,7 @@ export default function CalendarScreen() {
             header={header}
             footer={footer}
             loading={loading}
+            loadingMore={hasNext}
             refreshing={refreshing}
             onRefresh={refresh}
             error={error}

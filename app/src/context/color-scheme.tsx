@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Appearance, Platform, useColorScheme as useRNColorScheme } from 'react-native';
 
 import { readStored, writeStored } from '@/utils/storage';
@@ -32,14 +32,15 @@ function applyNative(preference: ColorSchemePreference) {
     Appearance.setColorScheme(preference === 'system' ? 'unspecified' : preference);
 }
 
+const subscribeNever = () => () => { };
+
 export function ColorSchemeProvider({ children }: { children: ReactNode }) {
     const system = useRNColorScheme();
     const [preference, setPreferenceState] = useState<ColorSchemePreference>('system');
 
-    const [hydrated, setHydrated] = useState(Platform.OS !== 'web');
-    useEffect(() => {
-        if (!hydrated) setHydrated(true);
-    }, [hydrated]);
+    // На сервере (статическая сборка веба) и при гидратации — false, сразу
+    // после неё — true. На нативе сервера нет, и значение сразу true.
+    const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
 
     useEffect(() => {
         let active = true;

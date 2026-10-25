@@ -100,8 +100,25 @@ export function buildPersonsUrl({ filter }: UsePersonsOptions = {}) {
     return `public/dela?${params.toString()}`;
 }
 
-/** API отдаёт дела страницами, поэтому собираем все страницы в один ответ */
-async function fetchAllPersons(url: string): Promise<PersonsResponse> {
+function collected(page: PersonItemsResponse, items: Person[], hasNext: boolean): PersonsResponse {
+    return {
+        ...page,
+        items,
+        items_count: items.length,
+        has_next: hasNext,
+        skip: 0,
+        take: items.length,
+    };
+}
+
+/**
+ * API отдаёт дела страницами, поэтому собираем все страницы в один ответ.
+ *
+ * Первая страница уходит на экран сразу (`onPartial`): в дни, где
+ * новомучеников за сотню, список больше не ждёт всех страниц подряд.
+ * Остальные дописываются снизу, и то, что уже на экране, не сдвигается.
+ */
+async function fetchAllPersons(url: string, onPartial?: (partial: PersonsResponse) => void): Promise<PersonsResponse> {
     const items: Person[] = [];
     let page: PersonItemsResponse;
 
@@ -110,16 +127,11 @@ async function fetchAllPersons(url: string): Promise<PersonsResponse> {
         // Реквизиты из `поля` поднимаются наверх: дальше запись выглядит так
         // же, как полная, только без лишнего.
         items.push(...page.items.map(({ поля, ...item }) => ({ ...item, ...поля }) as Person));
+
+        if (page.has_next && page.items.length > 0) onPartial?.(collected(page, [...items], true));
     } while (page.has_next && page.items.length > 0);
 
-    return {
-        ...page,
-        items,
-        items_count: items.length,
-        has_next: false,
-        skip: 0,
-        take: items.length,
-    };
+    return collected(page, items, false);
 }
 
 export function usePersons(options: UsePersonsOptions = {}) {

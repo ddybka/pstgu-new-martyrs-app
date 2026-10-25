@@ -20,27 +20,33 @@ export function LoginProvider({ children }: { children: React.ReactNode }) {
     const [status, setStatus] = useState<LoginStatus>('loading');
     const [error, setError] = useState<Error | null>(null);
 
-    const authenticate = useCallback(async () => {
-        setStatus('loading');
-        setError(null);
-
-        try {
-            await ensureToken();
-            setStatus('authenticated');
-        } catch (err) {
-            console.error('Ошибка авторизации:', err);
-            setError(err instanceof Error ? err : new Error(String(err)));
-            setStatus('error');
-        }
-    }, []);
+    // Без сброса в «загрузку»: при запуске состояние и так 'loading', а
+    // повтор сбрасывает его сам, до вызова.
+    const authenticate = useCallback(
+        () =>
+            ensureToken().then(
+                () => {
+                    setStatus('authenticated');
+                    setError(null);
+                },
+                (err: unknown) => {
+                    console.error('Ошибка авторизации:', err);
+                    setError(err instanceof Error ? err : new Error(String(err)));
+                    setStatus('error');
+                }
+            ),
+        []
+    );
 
     const retry = useCallback(async () => {
+        setStatus('loading');
+        setError(null);
         await clearToken().catch(() => { });
         await authenticate();
     }, [authenticate]);
 
     useEffect(() => {
-        authenticate();
+        void authenticate();
     }, [authenticate]);
 
     return <LoginContext.Provider value={{ status, error, retry }}>{children}</LoginContext.Provider>;

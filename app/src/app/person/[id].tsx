@@ -40,11 +40,6 @@ function formatEventDate(date: string | null | undefined) {
     return date;
 }
 
-/**
- * Вспышка подсветки: фон проявляется, когда страница уже доехала до события,
- * держится пару секунд и гаснет. Постоянной подсветки нет — блоки биографии
- * обычно без фона.
- */
 const FLASH_DELAY_MS = 300;
 const FLASH_IN = { duration: 250 };
 const FLASH_HOLD_MS = 2200;
@@ -56,7 +51,6 @@ function EventRow({
     onLayout,
 }: {
     event: PersonEvent;
-    /** Меняется — событие вспыхивает заново. `null` — без подсветки. */
     flashKey: number | null;
     onLayout: (event: LayoutChangeEvent) => void;
 }) {
@@ -66,8 +60,6 @@ function EventRow({
     useEffect(() => {
         if (flashKey === null) return;
         flash.value = 0;
-        // Анимации собираются заново на каждую вспышку: объект анимации
-        // Reanimated одноразовый, повторно его запускать нельзя.
         flash.value = withSequence(
             withDelay(FLASH_DELAY_MS, withTiming(1, FLASH_IN)),
             withDelay(FLASH_HOLD_MS, withTiming(0, FLASH_OUT))
@@ -101,8 +93,6 @@ function EventRow({
 }
 
 export default function PagePerson() {
-    // `events` — id точек карты, с которых сюда пришли: страница прокручивается
-    // к первому их событию в биографии, и эти события вспыхивают.
     const { id, events: eventsParam } = useLocalSearchParams<{ id: string; events?: string }>();
     const { person, loading, refreshing, notFound, error, stale, updatedAt, refresh } = usePerson(id);
     const theme = useTheme();
@@ -125,14 +115,10 @@ export default function PagePerson() {
         return matchEvents(mapPoints.filter((point) => ids.has(point.id)), personEvents);
     }, [eventsParam, mapPoints, personEvents]);
 
-    // Какие события сейчас вспыхивают. `key` растёт с каждым нажатием, чтобы
-    // повторное «Показать в биографии» на том же событии вспыхнуло снова.
     const [flash, setFlash] = useState<{ indexes: number[]; key: number } | null>(null);
     const flashEvents = (indexes: number[]) =>
         setFlash((current) => ({ indexes, key: (current?.key ?? 0) + 1 }));
 
-    // Прокрутка к событию. Позиции известны только после раскладки, поэтому
-    // запрос запоминается и выполняется, как только нужная строка измерена.
     const scrollRef = useAnimatedRef<Animated.ScrollView>();
     const headerHeight = useHeaderHeight();
     const eventTops = useRef<Record<number, number>>({});
@@ -334,9 +320,6 @@ const styles = StyleSheet.create({
         gap: Spacing.half,
         paddingVertical: Spacing.three,
     },
-    // Подсветка — во всю ширину, без скругления: строка выходит за поля
-    // текста на их ширину, а отступ возвращает внутри. Отступ есть всегда, и
-    // при подсветке строка не сдвигается.
     eventRow: {
         marginHorizontal: -Spacing.three,
         paddingHorizontal: Spacing.three,

@@ -112,7 +112,7 @@ export function kindColor(colors: KindColors, kind: string): string {
     return (colors as Record<string, string>)[kind] ?? colors.другое;
 }
 
-export function toFeatureCollection(points: MartyrPoint[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
+export function toFeatureCollection(points: readonly MartyrPoint[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
     return {
         type: 'FeatureCollection',
         features: points.map((point) => ({
@@ -127,11 +127,31 @@ export function toFeatureCollection(points: MartyrPoint[]): GeoJSON.FeatureColle
             // приходит как есть.
             properties: {
                 id: point.id,
-                number: point.number,
                 kind: point.kind,
             },
         })),
     };
+}
+
+const geoJsonCache = new WeakMap<readonly MartyrPoint[], string>();
+
+/**
+ * Данные источника строкой — для нативной карты.
+ *
+ * Нативный `GeoJSONSource` сам вызывает `JSON.stringify` на каждой своей
+ * отрисовке. Для восьми тысяч точек это почти мегабайт текста, и собирался он
+ * заново на каждое нажатие на точку (меняется выделение — перерисовывается
+ * карта). Строка, собранная один раз на массив точек, идёт на натив как есть.
+ */
+export function toGeoJsonString(points: readonly MartyrPoint[]): string {
+    let json = geoJsonCache.get(points);
+
+    if (json === undefined) {
+        json = JSON.stringify(toFeatureCollection(points));
+        geoJsonCache.set(points, json);
+    }
+
+    return json;
 }
 
 /**

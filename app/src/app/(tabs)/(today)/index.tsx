@@ -10,7 +10,7 @@ import { usePersons } from '@/hooks/use-persons';
 import Constants from 'expo-constants';
 
 export default function HomeScreen() {
-    const { persons, loading, refreshing, error, stale, updatedAt, refresh } = usePersons();
+    const { persons, total, hasNext, loading, refreshing, error, stale, updatedAt, refresh } = usePersons();
 
     if (error) {
         return <BlockError error={error} onRetry={refresh} />;
@@ -19,7 +19,7 @@ export default function HomeScreen() {
     const header = (
         <View style={styles.header}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.date}>
-                {formatMartyrsCount(persons.length)}
+                {formatMartyrsCount(total)}
             </ThemedText>
             <TabHeaderMenu />
         </View>
@@ -46,6 +46,7 @@ export default function HomeScreen() {
             header={header}
             footer={footer}
             loading={loading}
+            loadingMore={hasNext}
             refreshing={refreshing}
             onRefresh={refresh}
             stale={stale}

@@ -28,6 +28,7 @@ import {
     isSinglePoint,
     selectionFilter,
     toFeatureCollection,
+    type MapBounds,
     type MartyrsMapProps,
 } from './map-config';
 import { useMapStyle } from './map-style';
@@ -79,11 +80,9 @@ export default function MartyrsMap({
         selectedRef.current = selected;
     }, [onEventsPress, points, selected]);
 
-    // Рамка нужна только в момент создания карты, а массив у неё каждый рендер
-    // новый. Через ref он не попадает в зависимости и не пересоздаёт карту;
-    // в зависимостях — строковый ключ, который меняется только по существу.
-    const boundsRef = useRef(bounds);
-    boundsRef.current = bounds;
+    // Рамка нужна только в момент создания карты, а массив у неё бывает
+    // новым на каждый рендер. В зависимостях поэтому строковый ключ: он
+    // меняется только по существу, и из него же рамка читается обратно.
     const boundsKey = bounds ? JSON.stringify(bounds) : '';
 
     // Стиль приходит не сразу: он скачивается и правится (подписи, границы).
@@ -122,7 +121,7 @@ export default function MartyrsMap({
 
         // Камеру ставим до первого кадра — не анимацией: иначе карта успевает
         // показать вид по умолчанию и только потом перелетает к человеку.
-        const initialBounds = boundsRef.current;
+        const initialBounds = boundsKey ? (JSON.parse(boundsKey) as MapBounds) : null;
         if (initialBounds) {
             if (isSinglePoint(initialBounds)) {
                 map.jumpTo({ center: initialBounds[0], zoom: SINGLE_POINT_ZOOM });

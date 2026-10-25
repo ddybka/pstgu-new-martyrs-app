@@ -11,10 +11,9 @@ import Animated, {
     useSharedValue,
     withTiming,
 } from "react-native-reanimated";
-import { PersonCardMenu } from "./person-card-menu";
+import { CARD_MENU_NAVIGATES, PersonCardMenu } from "./person-card-menu";
 import { PersonPhotos } from "./person-photos";
 import { ThemedText } from "./themed-text";
-import { ThemedView } from "./themed-view";
 import { HeadingFonts, Spacing } from "@/constants/theme";
 import { useCardView } from "@/context/card-view";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -29,19 +28,22 @@ const PRESS_IN = { duration: 60, easing: Easing.out(Easing.quad) };
 const PRESS_OUT = { duration: 120, easing: Easing.out(Easing.quad) };
 
 export function PersonCard({ person }: { person: Person }) {
-    const scale = useSharedValue(1);
-    const opacity = useSharedValue(1);
-    const [pressed, setPressed] = useState(false);
+    // Одно значение на всё нажатие: масштаб, прозрачность и фон считаются из
+    // него на UI-потоке, без перерисовки карточки на каждое касание.
+    const press = useSharedValue(0);
     const colorScheme = useColorScheme();
     const theme = useTheme();
     const { view } = useCardView();
     const compact = view === 'compact';
     const { width } = useWindowDimensions();
+    // Высота карточки нужна только превью меню на iOS (см. person-card-menu).
+    const [height, setHeight] = useState<number | undefined>(undefined);
 
     const content = compact ? <CompactContent person={person} /> : <DetailedContent person={person} />;
 
     // Копия карточки для поднятого вида в меню на iOS — без нажатия, рамки и
-    // анимаций, на фоне страницы и во всю ширину, как в списке.
+    // анимаций, на фоне страницы и во всю ширину, как в списке. Монтируется
+    // только при открытом меню.
     const preview = (
         <View
             style={[
@@ -54,9 +56,18 @@ export function PersonCard({ person }: { person: Person }) {
         </View>
     );
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-        opacity: opacity.value,
+    const pressedColor = colorScheme === "dark" ? "#1C1C1E" : "#F2F2F7";
+    const background = theme.background;
+
+    const contentStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: 1 - 0.01 * press.value }],
+        opacity: 1 - 0.25 * press.value,
+    }));
+
+    // Фон меняется скачком, как и раньше: плавное затухание фона под
+    // пальцем читается как задержка.
+    const backgroundStyle = useAnimatedStyle(() => ({
+        backgroundColor: press.value > 0.5 ? pressedColor : background,
     }));
 
     // Долгое нажатие — меню «Поделиться» и «Уточнить сведения»
@@ -65,39 +76,42 @@ export function PersonCard({ person }: { person: Person }) {
         <PersonCardMenu
             person={person}
             name={formatPersonName(person.ФИО) ?? person.Заголовок ?? `Дело №${person.Номер}`}
-            preview={preview}>
+            preview={preview}
+            previewHeight={height}>
             {(onLongPress) => (
                 <AnimatedPressable
-                    onPress={() => router.push({ pathname: '/person/[id]', params: { id: person?.Номер } })}
+                    // На iOS карточка — это `Link`, и переход делает он.
+                    onPress={
+                        CARD_MENU_NAVIGATES
+                            ? undefined
+                            : () => router.push({ pathname: '/person/[id]', params: { id: person?.Номер } })
+                    }
                     onLongPress={onLongPress}
+                    onLayout={
+                        CARD_MENU_NAVIGATES
+                            ? ({ nativeEvent }) => setHeight(Math.round(nativeEvent.layout.height))
+                            : undefined
+                    }
                     onPressIn={() => {
-                        setPressed(true);
-                        scale.value = withTiming(0.99, PRESS_IN);
-                        opacity.value = withTiming(0.75, PRESS_IN);
+                        press.value = withTiming(1, PRESS_IN);
                     }}
                     onPressOut={() => {
-                        setPressed(false);
-                        scale.value = withTiming(1, PRESS_OUT);
-                        opacity.value = withTiming(1, PRESS_OUT);
+                        press.value = withTiming(0, PRESS_OUT);
                     }}
                     style={styles.card}
                 >
-                    <ThemedView
+                    <Animated.View
                         style={[
                             styles.container,
                             compact && styles.containerCompact,
-                            {
-                                backgroundColor: pressed
-                                    ? colorScheme === "dark" ? "#1C1C1E" : "#F2F2F7"
-                                    : undefined,
-                                borderColor: theme.separator,
-                            },
+                            { borderColor: theme.separator },
+                            backgroundStyle,
                         ]}
                     >
-                        <Animated.View style={[styles.content, animatedStyle]}>
+                        <Animated.View style={[styles.content, contentStyle]}>
                             {content}
                         </Animated.View>
-                    </ThemedView>
+                    </Animated.View>
                 </AnimatedPressable>
             )}
         </PersonCardMenu>

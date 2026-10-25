@@ -50,7 +50,7 @@ export function PersonPhotos({
     return fullWidth ? (
         <PhotoPager items={items} name={name} />
     ) : (
-        <PhotoSingle item={items[0]} name={name} />
+        <PhotoSingle key={items[0].fileId} item={items[0]} name={name} />
     );
 }
 
@@ -61,19 +61,21 @@ export function PersonPhotos({
  */
 function PhotoSingle({ item, name }: { item: PersonPhotoItem; name?: string }) {
     const [failed, setFailed] = useState(false);
-    const [frameWidth, setFrameWidth] = useState(0);
     const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
     if (failed) return null;
 
-    const width = aspectRatio ? Math.min(frameWidth, STRIP_HEIGHT * aspectRatio) : undefined;
+    // Ширина — по пропорциям снимка, но не шире карточки: это делает сама
+    // раскладка (`aspectRatio` и `maxWidth`), без замера рамки и лишней
+    // перерисовки на каждую карточку.
+    const size = aspectRatio ? { aspectRatio, maxWidth: '100%' as const } : styles.singleImagePending;
 
     return (
-        <View style={styles.single} onLayout={({ nativeEvent }) => setFrameWidth(nativeEvent.layout.width)}>
+        <View style={styles.single}>
             {item.source && (
                 <Image
                     source={item.source}
-                    style={[styles.singleImage, { width: width ?? '100%' }]}
+                    style={[styles.singleImage, size]}
                     contentFit="contain"
                     contentPosition="left"
                     transition={200}
@@ -216,6 +218,9 @@ const styles = StyleSheet.create({
     singleImage: {
         height: STRIP_HEIGHT,
         borderRadius: Spacing.two,
+    },
+    singleImagePending: {
+        width: '100%',
     },
     singleLoader: {
         position: 'absolute',
