@@ -13,25 +13,23 @@ import { useTheme } from '@/hooks/use-theme';
  * ней. На Android прозрачность означает шапку без фона и без верхнего отступа:
  * контент уезжает под неё и сливается со списком, поэтому там обычная шапка.
  *
- * `large: false` — для экранов без прокрутки.
- * `transparent: false` — сплошная шапка цвета страницы. Для экранов, под
- * которыми нечему проезжать, а заголовок поверх читался бы плохо (карта).
+ * `large: false` — маленькая шапка: для экранов без прокрутки (карта).
+ *
+ * `material: true` — фон под шапкой всегда, а не только при прокрутке. Нужен
+ * экранам без прокрутки (карта): там UIKit считает контент «у края» и всегда
+ * берёт `scrollEdgeAppearance`, а прозрачный `headerLargeStyle` делает его
+ * полностью прозрачным и стирает размытие (см. `buildAppearance` в
+ * react-native-screens). Поэтому с `material` его нет.
+ *
+ * На iOS до 26 фон — системное размытие. На iOS 26 у системной шапки своего
+ * стекла нет вовсе: шапка остаётся прозрачной, а стекло под неё кладёт сам
+ * экран (`HeaderGlass`).
  */
-export function useStackHeaderOptions(title: string, { large = true, transparent = true } = {}) {
+export function useStackHeaderOptions(title: string, { large = true, material = false } = {}) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     // На iOS 26 «жидкое стекло» шапка делает сама, явный blurEffect с ним спорит, поэтому его не задаем.
     const blurEffect = isDark ? 'systemMaterialDark' : 'systemMaterialLight';
-
-    if (Platform.OS === 'ios' && !transparent) {
-        return {
-            title,
-            headerShadowVisible: false,
-            headerTintColor: theme.text,
-            headerStyle: { backgroundColor: theme.background },
-            headerTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
-        } as const;
-    }
 
     if (Platform.OS === 'ios') {
         return {
@@ -40,7 +38,9 @@ export function useStackHeaderOptions(title: string, { large = true, transparent
             headerTransparent: true,
             headerShadowVisible: false,
             headerTintColor: theme.text,
-            headerLargeStyle: { backgroundColor: 'transparent' },
+            // У края прокрутки — прозрачная, материал появляется при прокрутке.
+            // С `material` — материал всегда, и у края тоже.
+            ...(material ? null : { headerLargeStyle: { backgroundColor: 'transparent' } }),
             headerBlurEffect: isLiquidGlassAvailable() ? undefined : blurEffect,
             headerLargeTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
             headerTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },

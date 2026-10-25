@@ -1,9 +1,11 @@
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Suspense, lazy, useMemo, useState, useSyncExternalStore } from 'react';
 import { Platform, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlockLoading } from '@/components/block-loading';
+import { HeaderGlass } from '@/components/header-glass';
 import { EventsPanel } from '@/components/map/events-panel';
 import { KindFilter } from '@/components/map/kind-filter';
 import { ThemedText } from '@/components/themed-text';
@@ -44,6 +46,10 @@ export default function MapScreen() {
     const { person } = useLocalSearchParams<{ person?: string }>();
     const focusNumber = normalizePersonNumber(person);
     const insets = useSafeAreaInsets();
+    // На iOS шапка прозрачная и карта начинается под ней — фильтр ставится
+    // ниже шапки. На Android шапка сплошная, и карта начинается после неё.
+    const headerHeight = useHeaderHeight();
+    const filterTop = Platform.OS === 'ios' ? headerHeight + Spacing.two : undefined;
 
     const points = useMapPoints();
     const focusPoints = usePersonMapPoints(focusNumber);
@@ -106,12 +112,15 @@ export default function MapScreen() {
                 />
             </Suspense>
 
+            {/* Стекло под прозрачной шапкой — на iOS 26 (см. HeaderGlass). */}
+            <HeaderGlass />
+
             <KindFilter
                 hidden={hidden}
                 onChange={setHidden}
                 counts={counts}
                 inset={Platform.OS === 'web' ? 0 : Spacing.three}
-                style={[styles.filter, Platform.OS === 'web' && styles.filterWeb]}
+                style={[styles.filter, Platform.OS === 'web' && styles.filterWeb, filterTop !== undefined && { top: filterTop }]}
             />
 
             {selectedEvents.length > 0 && (
