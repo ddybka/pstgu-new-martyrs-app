@@ -33,54 +33,72 @@ import { readCache, writeCache } from '@/utils/api-cache';
  */
 
 const SOURCE = 'http://map.nmbook.ru/map/all_points';
-const CACHE_KEY = 'map-points';
+// Версия в ключе: копия прошлого формата (без текстов событий) читаться не
+// должна — с ней карта показала бы точки без описаний.
+const CACHE_KEY = 'map-points-v2';
 
 const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 45_000;
+
+/** Номер дела, широта, долгота, индекс типа, датировка, текст события. */
+type SnapshotPoint = [number, number, number, number, string, string];
 
 type Snapshot = {
     source: string;
     builtAt?: number;
     types: string[];
-    points: [number, number, number, number][];
+    /** Заголовок биографии по номеру дела — один на все точки человека. */
+    titles: Record<string, string>;
+    points: SnapshotPoint[];
 };
 
 type RawPoint = {
     humanId: number;
+    humanFio?: string;
     N: number;
     E: number;
     clusterType: string;
+    dating?: string;
+    description?: string;
 };
 
 function toPoints(snapshot: Snapshot): MartyrPoint[] {
-    return snapshot.points.map(([number, latitude, longitude, type], index) => ({
+    return snapshot.points.map(([number, latitude, longitude, type, dating, text], index) => ({
         id: index,
         number,
         kind: snapshot.types[type] ?? '',
         latitude,
         longitude,
+        title: snapshot.titles[number] ?? `Дело №${number}`,
+        dating,
+        text,
     }));
 }
 
+/** То же, что делает `scripts/build-map-points.mjs`, — форматы обязаны совпадать. */
 function condense(raw: RawPoint[]): Snapshot {
     const types = [...new Set(raw.map((point) => point.clusterType))].sort();
+    const titles: Record<string, string> = {};
 
     const points = raw
         .filter((point) => Number.isFinite(point.N) && Number.isFinite(point.E))
-        .map(
-            (point) =>
-                [
-                    point.humanId,
-                    Number(point.N.toFixed(5)),
-                    Number(point.E.toFixed(5)),
-                    types.indexOf(point.clusterType),
-                ] as [number, number, number, number]
-        );
+        .map((point): SnapshotPoint => {
+            if (point.humanFio) titles[point.humanId] = point.humanFio;
 
-    return { source: SOURCE, builtAt: Date.now(), types, points };
+            return [
+                point.humanId,
+                Number(point.N.toFixed(5)),
+                Number(point.E.toFixed(5)),
+                types.indexOf(point.clusterType),
+                point.dating ?? '',
+                point.description ?? '',
+            ];
+        });
+
+    return { source: SOURCE, builtAt: Date.now(), types, titles, points };
 }
 
-const BUNDLED = bundled as Snapshot;
+const BUNDLED = bundled as unknown as Snapshot;
 
 let points: MartyrPoint[] = toPoints(BUNDLED);
 let updatedAt: number = BUNDLED.builtAt ?? 0;

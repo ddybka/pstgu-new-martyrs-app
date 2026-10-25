@@ -1,0 +1,243 @@
+import { SymbolView } from 'expo-symbols';
+import { useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
+
+import { KIND_COLORS, POINT_KINDS, kindColor, type MartyrPoint } from './map-config';
+
+import { ThemedText } from '@/components/themed-text';
+import { ButtonRadius, HeadingFonts, Spacing, SurfaceRadius, SurfaceShadow } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
+import { plural } from '@/utils/plural';
+
+/** С этого числа людей в списке появляется поиск по ФИО. */
+const SEARCH_FROM = 8;
+const CLOSE_ICON_SIZE = 20;
+
+type PersonEvents = {
+    number: number;
+    title: string;
+    events: MartyrPoint[];
+};
+
+/**
+ * События, собранные по людям: «заголовок биографии → его события здесь».
+ * У одного человека в одном месте их бывает несколько, и повторять над
+ * каждым заголовок незачем.
+ */
+function groupByPerson(events: readonly MartyrPoint[]): PersonEvents[] {
+    const groups = new Map<number, PersonEvents>();
+
+    for (const event of events) {
+        const group = groups.get(event.number);
+        if (group) group.events.push(event);
+        else groups.set(event.number, { number: event.number, title: event.title, events: [event] });
+    }
+
+    return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+}
+
+const KIND_LABELS: Record<string, string> = Object.fromEntries(
+    POINT_KINDS.map(({ kind, label }) => [kind, label])
+);
+
+/**
+ * Шторка со списком событий под нажатой точкой или кластером.
+ *
+ * Одна на все случаи: одна точка, несколько событий в одном месте, кластер.
+ * Список виртуальный — в одну точку стекается вся Москва, это 2400 событий,
+ * и для неё же нужен поиск.
+ *
+ * Оформлена как веб-шапка: едва скруглена, без обводки, с мягкой тенью и
+ * фоном приподнятой поверхности. Блок человека нажимается целиком — он и
+ * есть ссылка на биографию.
+ */
+export function EventsPanel({
+    events,
+    onClose,
+    onOpenPerson,
+    style,
+}: {
+    events: readonly MartyrPoint[];
+    onClose: () => void;
+    onOpenPerson: (number: number, eventIds: number[]) => void;
+    style?: StyleProp<ViewStyle>;
+}) {
+    const theme = useTheme();
+    const colors = KIND_COLORS[useColorScheme()];
+    const [query, setQuery] = useState('');
+
+    const groups = useMemo(() => groupByPerson(events), [events]);
+    const needle = query.trim().toLocaleLowerCase('ru');
+    const shown = useMemo(
+        () =>
+            needle
+                ? groups.filter((group) => group.title.toLocaleLowerCase('ru').includes(needle))
+                : groups,
+        [groups, needle]
+    );
+
+    const summary =
+        groups.length === 1
+            ? plural(events.length, 'событие', 'события', 'событий')
+            : `${plural(events.length, 'событие', 'события', 'событий')} · ${plural(groups.length, 'человек', 'человека', 'человек')}`;
+
+    return (
+        <View
+            style={[
+                styles.panel,
+                { backgroundColor: theme.backgroundRaised },
+                style,
+            ]}>
+            <View style={styles.header}>
+                <ThemedText type="smallBold" themeColor="textSecondary" style={styles.summary}>
+                    {summary}
+                </ThemedText>
+                <Pressable
+                    onPress={onClose}
+                    hitSlop={Spacing.two}
+                    accessibilityRole="button"
+                    accessibilityLabel="Закрыть"
+                    style={({ pressed }) => pressed && styles.pressed}>
+                    <SymbolView
+                        name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                        size={CLOSE_ICON_SIZE}
+                        tintColor={theme.text}
+                        weight="semibold"
+                    />
+                </Pressable>
+            </View>
+
+            {groups.length >= SEARCH_FROM && (
+                <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Поиск по ФИО"
+                    placeholderTextColor={theme.textSecondary}
+                    autoCorrect={false}
+                    clearButtonMode="while-editing"
+                    style={[styles.search, { color: theme.text, backgroundColor: theme.backgroundElement }]}
+                />
+            )}
+
+            <FlatList
+                data={shown}
+                keyExtractor={(group) => String(group.number)}
+                keyboardShouldPersistTaps="handled"
+                initialNumToRender={8}
+                windowSize={5}
+                contentContainerStyle={styles.list}
+                ItemSeparatorComponent={() => (
+                    <View style={[styles.separator, { backgroundColor: theme.separator }]} />
+                )}
+                ListEmptyComponent={
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                        Никого не нашлось
+                    </ThemedText>
+                }
+                renderItem={({ item }) => (
+                    <Pressable
+                        onPress={() => onOpenPerson(item.number, item.events.map((event) => event.id))}
+                        accessibilityRole="link"
+                        accessibilityLabel={`Открыть биографию: ${item.title}`}
+                        style={({ pressed, hovered }) => [
+                            styles.group,
+                            (pressed || hovered) && { backgroundColor: theme.backgroundElement },
+                        ]}>
+                        <ThemedText style={styles.title}>{item.title}</ThemedText>
+
+                        <View style={styles.events}>
+                            {item.events.map((event) => (
+                                <View key={event.id} style={styles.event}>
+                                    <View style={styles.meta}>
+                                        <View style={[styles.dot, { backgroundColor: kindColor(colors, event.kind) }]} />
+                                        <ThemedText type="small" themeColor="textSecondary">
+                                            {[KIND_LABELS[event.kind] ?? event.kind, event.dating].filter(Boolean).join(' · ')}
+                                        </ThemedText>
+                                    </View>
+                                    {event.text !== '' && <ThemedText style={styles.text}>{event.text}</ThemedText>}
+                                </View>
+                            ))}
+                        </View>
+                    </Pressable>
+                )}
+            />
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    panel: {
+        borderRadius: SurfaceRadius,
+        boxShadow: SurfaceShadow,
+        overflow: 'hidden',
+    },
+    pressed: {
+        opacity: 0.7,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.three,
+        paddingHorizontal: Spacing.three,
+        paddingTop: Spacing.three,
+        paddingBottom: Spacing.two,
+    },
+    summary: {
+        flex: 1,
+    },
+    search: {
+        marginHorizontal: Spacing.three,
+        marginBottom: Spacing.two,
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.two,
+        borderRadius: ButtonRadius,
+        fontSize: 16,
+    },
+    list: {
+        paddingBottom: Spacing.three,
+    },
+    separator: {
+        height: StyleSheet.hairlineWidth,
+        marginHorizontal: Spacing.three,
+    },
+    group: {
+        paddingHorizontal: Spacing.three,
+        paddingVertical: Spacing.three,
+    },
+    title: {
+        marginBottom: Spacing.two,
+        fontFamily: HeadingFonts.bold,
+        fontSize: 17,
+        lineHeight: 22,
+    },
+    // События одного человека отделены друг от друга заметнее, чем строки
+    // внутри события, — иначе они слипаются.
+    events: {
+        gap: Spacing.three,
+    },
+    // Между строкой «тип · датировка» и текстом — тот же отступ, что между
+    // заголовком и этой строкой.
+    event: {
+        gap: Spacing.two,
+    },
+    meta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.two,
+    },
+    dot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    text: {
+        fontSize: 16,
+        lineHeight: 22,
+        fontWeight: 400,
+    },
+    empty: {
+        textAlign: 'center',
+        paddingVertical: Spacing.four,
+    },
+});

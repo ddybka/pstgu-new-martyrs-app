@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from './themed-text';
 import { Dropdown } from './ui/dropdown';
 
-import { Spacing } from '@/constants/theme';
+import { ButtonRadius, Spacing } from '@/constants/theme';
 import { CARD_VIEWS, useCardView } from '@/context/card-view';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
         gap: Spacing.two,
         paddingVertical: Spacing.one,
         paddingHorizontal: Spacing.three,
-        borderRadius: Spacing.three,
+        borderRadius: ButtonRadius,
     },
     icon: {
         height: 12,

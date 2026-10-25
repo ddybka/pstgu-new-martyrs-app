@@ -93,7 +93,9 @@ function MonthGrid({
                     {row.map((day, column) => {
                         if (day === null) return <View key={`pad-${column}`} style={styles.cell} />;
 
-                        const isSelected = year === value.year && month === value.month && day === value.day;
+                        // День памяти от года не зависит: выбранное число
+                        // отмечено в любом году, а не только в том, где его нажали.
+                        const isSelected = month === value.month && day === value.day;
                         const isToday = isCurrentMonth && day === today.getDate();
 
                         return (
@@ -104,8 +106,16 @@ function MonthGrid({
                                 accessibilityRole="button"
                                 accessibilityLabel={`${day} ${MONTHS_FOR_DATE[month - 1]} ${year}`}
                                 accessibilityState={{ selected: isSelected }}>
+                                {/* Фон задан всегда, а `collapsable` выключен: иначе
+                                    Android схлопывает пустой кружок (view flattening),
+                                    и когда у него появляется фон, скругление иногда
+                                    теряется — выделение выходит квадратным. */}
                                 <View
-                                    style={[styles.dayCircle, isSelected && { backgroundColor: theme.text }]}>
+                                    collapsable={false}
+                                    style={[
+                                        styles.dayCircle,
+                                        { backgroundColor: isSelected ? theme.text : 'transparent' },
+                                    ]}>
                                     <ThemedText
                                         style={[
                                             styles.dayText,
@@ -173,13 +183,27 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
         setJump((current) => ({ page: next, key: current.key + 1 }));
     };
 
-    const selectedVisible = value.year === visibleYear && value.month === visibleMonth;
+    const selectedVisible = value.month === visibleMonth;
+
+    // Смена года — списком или свайпом через январь — сдвигает и выбранную
+    // дату: число то же, год новый. Число не трогаем даже для 29 февраля в
+    // невисокосном году: день памяти от этого меняться не должен.
+    const followYear = (year: number) => {
+        if (year !== value.year) onChange({ ...value, year });
+    };
+
+    const changeYear = (year: number) => {
+        goTo(year, visibleMonth);
+        followYear(year);
+    };
 
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         if (width === 0) return;
 
         const index = Math.min(pageCount - 1, Math.max(0, Math.round(event.nativeEvent.contentOffset.x / width)));
-        if (index !== page) setPage(index);
+        if (index === page) return;
+        setPage(index);
+        followYear(firstYear + Math.floor(index / 12));
     };
 
     const onLayout = (event: LayoutChangeEvent) => {
@@ -202,14 +226,14 @@ export function MonthCalendar({ value, onChange }: MonthCalendarProps) {
                     accessibilityLabel="Выбрать год"
                     options={yearOptions}
                     value={visibleYear}
-                    onSelect={(year) => goTo(year, visibleMonth)}
+                    onSelect={changeYear}
                 />
 
                 {!selectedVisible && (
                     <ReturnButton
                         label={`${value.day} ${MONTHS_FOR_DATE[value.month - 1]}`}
                         accessibilityLabel={`Вернуться к ${value.day} ${MONTHS_FOR_DATE[value.month - 1]}`}
-                        onPress={() => goTo(value.year, value.month)}
+                        onPress={() => goTo(visibleYear, value.month)}
                     />
                 )}
             </View>

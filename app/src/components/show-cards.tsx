@@ -64,6 +64,14 @@ export function ShowCards({
             contentInsetAdjustmentBehavior="automatic"
             data={loading ? [] : persons}
             keyExtractor={(person, index) => String(person.Номер ?? index)}
+            // Карточка тяжёлая: на iOS это свой SwiftUI-хост контекстного меню
+            // с двумя деревьями внутри — самой карточкой и её копией для
+            // превью. По умолчанию FlatList держит смонтированными по десять
+            // экранов в обе стороны, и в дни с полусотней новомучеников
+            // (30 октября) это были почти все карточки разом — список лагал.
+            initialNumToRender={6}
+            maxToRenderPerBatch={4}
+            windowSize={5}
             ListHeaderComponent={listHeader}
             ListFooterComponent={footer}
             renderItem={({ item }) => (

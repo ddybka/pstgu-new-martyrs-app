@@ -6,6 +6,17 @@ export const Colors = {
     light: {
         text: '#000000',
         background: '#ffffff',
+        /**
+         * Приподнятые поверхности поверх страницы: плавающая шапка веба,
+         * выпадающие списки. В светлой теме их отделяет тень, в тёмной тень на
+         * чёрном не видна — там их отделяет сам фон, чуть светлее страницы.
+         */
+        backgroundRaised: '#ffffff',
+        /**
+         * Слабый фон для целых блоков — едва отличим от страницы. На нём
+         * обычные серые плашки (`backgroundElement`) по-прежнему читаются.
+         */
+        backgroundSubtle: '#F7F7F9',
         backgroundElement: '#F0F0F3',
         backgroundSelected: '#E0E1E6',
         textSecondary: '#60646C',
@@ -15,6 +26,8 @@ export const Colors = {
     dark: {
         text: '#ffffff',
         background: '#000000',
+        backgroundRaised: '#18191B',
+        backgroundSubtle: '#0E0E10',
         backgroundElement: '#212225',
         backgroundSelected: '#2E3135',
         textSecondary: '#B0B4BA',
@@ -75,3 +88,12 @@ export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 /** Высота плавающей шапки веб-версии вместе с её внешними отступами. */
 export const WebHeaderInset = 92;
 export const MaxContentWidth = 800;
+/**
+ * Скругление кнопок-плашек: вкладки веб-шапки, «Кратко», «вернуться к дате».
+ * Едва заметное — не капсулы.
+ */
+export const ButtonRadius = 6;
+/** Скругление плавающих поверхностей: веб-шапка, выпадающие списки, шторка карты. */
+export const SurfaceRadius = 10;
+/** Тень плавающих поверхностей — мягкая, среднего размера. */
+export const SurfaceShadow = '0 4px 16px rgba(0, 0, 0, 0.12)';

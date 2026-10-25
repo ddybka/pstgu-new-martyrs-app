@@ -1,6 +1,6 @@
 import { Camera, GeoJSONSource, Layer, Map } from '@maplibre/maplibre-react-native';
 import { useMemo, useRef } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import {
     BOUNDS_PADDING,
@@ -8,10 +8,14 @@ import {
     CLUSTER_LAYER_ID,
     CLUSTER_OPTIONS,
     INITIAL_VIEW,
+    KIND_COLORS,
     POINT_LAYER_ID,
+    SELECTED_LAYER_ID,
     SINGLE_POINT_ZOOM,
     SOURCE_ID,
     buildLayers,
+    featureId,
+    idsAtSamePlace,
     isSinglePoint,
     toFeatureCollection,
     type MartyrsMapProps,
@@ -32,19 +36,26 @@ export default function MartyrsMap({
     points,
     bounds,
     interactive = true,
-    onPersonPress,
-    onPress,
+    onEventsPress,
+    selected,
 }: MartyrsMapProps) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const mapStyle = useMapStyle(isDark);
-    const cameraRef = useRef<React.ComponentRef<typeof Camera>>(null);
     const sourceRef = useRef<React.ComponentRef<typeof GeoJSONSource>>(null);
 
     const data = useMemo(() => toFeatureCollection(points), [points]);
     const layers = useMemo(
-        () => buildLayers(theme.text, theme.background),
-        [theme.text, theme.background]
+        () =>
+            mapStyle &&
+            buildLayers(
+                theme.text,
+                theme.background,
+                mapStyle.font,
+                KIND_COLORS[isDark ? 'dark' : 'light'],
+                selected
+            ),
+        [theme.text, theme.background, mapStyle, isDark, selected]
     );
 
     // Камера ставится один раз, начальным состоянием: если задавать её пропсом
@@ -72,12 +83,12 @@ export default function MartyrsMap({
 
     // Стиль скачивается и правится (подписи, границы) — до этого карту рисовать
     // нечем: с временным стилем она моргнула бы чужим оформлением.
-    if (!mapStyle) return null;
+    if (!mapStyle || !layers) return null;
 
-    const map = (
+    return (
         <Map
             style={styles.map}
-            mapStyle={mapStyle}
+            mapStyle={mapStyle.style}
             // Встроенные «украшения» карты выключены: кнопка «i» и логотип
             // MapLibre. Указание авторства при этом остаётся обязательным —
             // подложка на данных OpenStreetMap под ODbL, — поэтому оно
@@ -94,7 +105,7 @@ export default function MartyrsMap({
             doubleTapHoldZoom={interactive}
             touchRotate={interactive}
             touchPitch={interactive}>
-            <Camera ref={cameraRef} initialViewState={initialViewState} />
+            <Camera initialViewState={initialViewState} />
 
             <GeoJSONSource
                 id={SOURCE_ID}
@@ -102,50 +113,37 @@ export default function MartyrsMap({
                 data={data}
                 {...CLUSTER_OPTIONS}
                 onPress={async (event) => {
-                    if (!interactive) return;
+                    if (!onEventsPress) return;
 
                     const feature = event.nativeEvent.features[0];
                     if (!feature) return;
 
                     const properties = feature.properties ?? {};
 
-                    // Кластер не открывает список, а разворачивается: источник
-                    // сам считает, на каком зуме он распадётся на части.
+                    // Кластер — это список событий, а не повод приблизиться:
+                    // точки внутри него могут не разойтись ни на каком зуме
+                    // (вся Москва в данных — одна точка).
                     if (properties.cluster) {
-                        const zoom = await sourceRef.current
-                            ?.getClusterExpansionZoom(properties.cluster_id)
+                        const leaves = await sourceRef.current
+                            ?.getClusterLeaves(properties.cluster_id, properties.point_count, 0)
                             .catch(() => null);
+                        if (!leaves) return;
 
-                        if (zoom == null || feature.geometry.type !== 'Point') return;
-
-                        cameraRef.current?.easeTo({
-                            center: feature.geometry.coordinates as [number, number],
-                            zoom,
-                            duration: 400,
-                        });
+                        const ids = leaves.map(featureId).filter((id) => id !== null);
+                        if (ids.length > 0) onEventsPress(ids);
                         return;
                     }
 
-                    if (typeof properties.number === 'number') onPersonPress?.(properties.number);
+                    const id = featureId(feature);
+                    if (id !== null) onEventsPress(idsAtSamePlace(points, id));
                 }}>
                 <Layer id={CLUSTER_LAYER_ID} {...layers.clusters} />
-                <Layer id={CLUSTER_COUNT_LAYER_ID} {...layers.clusterCount} />
+                <Layer id={SELECTED_LAYER_ID} {...layers.selection} />
                 <Layer id={POINT_LAYER_ID} {...layers.points} />
+                <Layer id={CLUSTER_COUNT_LAYER_ID} {...layers.clusterCount} />
             </GeoJSONSource>
         </Map>
     );
-
-    // Неинтерактивная карта — это картинка со ссылкой, и нажатие на неё должно
-    // ловиться поверх всей карты, а не отдельными точками.
-    if (!interactive && onPress) {
-        return (
-            <Pressable onPress={onPress} style={styles.map}>
-                {map}
-            </Pressable>
-        );
-    }
-
-    return map;
 }
 
 const styles = StyleSheet.create({

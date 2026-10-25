@@ -1,10 +1,15 @@
 import { Stack } from 'expo-router';
 
-// Без шапки: она оставляла светлую полосу поверх карты
+import { useStackHeaderOptions } from '@/hooks/use-stack-header';
+
+// Шапка сплошная, цвета страницы: прозрачная оставляла светлую полосу поверх
+// карты, а заголовок поверх подложки читался бы плохо.
 export default function MapLayout() {
+    const options = useStackHeaderOptions('Карта событий', { large: false, transparent: false });
+
     return (
-        <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
+        <Stack>
+            <Stack.Screen name="index" options={options} />
         </Stack>
     );
 }

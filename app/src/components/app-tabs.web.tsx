@@ -7,6 +7,7 @@ import {
     TabListProps,
 } from 'expo-router/ui';
 import { router, usePathname } from 'expo-router';
+import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { createContext, useContext, useState, type ComponentRef, type Ref } from 'react';
 import { Pressable, View, StyleSheet, useWindowDimensions } from 'react-native';
@@ -17,7 +18,7 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Dropdown } from './ui/dropdown';
 
-import { Colors, HeadingFonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { ButtonRadius, Colors, SurfaceRadius, HeadingFonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -33,6 +34,11 @@ const BUTTON_HEIGHT = 20 + Spacing.one * 2;
 const MENU_ICON_SIZE = 18;
 /** Отступ снизу у раскрытой компактной шапки. */
 const OPEN_MENU_PADDING_BOTTOM = 22;
+/** Скругление шапки и её кнопок — едва заметное, не капсулы. */
+const HEADER_RADIUS = SurfaceRadius;
+const BUTTON_RADIUS = ButtonRadius;
+/** Иконка и название — одной высоты со строкой названия. */
+const BRAND_SIZE = 28;
 
 export default function AppTabs() {
     return (
@@ -71,10 +77,14 @@ export function TabButton({ children, isFocused, ref, ...props }: TabTriggerSlot
         // функциональный компонент, и его экземпляр — `ReactNativeElement`.
         // Сам объект тот же, расходятся только типы.
         <Pressable {...props} ref={ref as Ref<ComponentRef<typeof Pressable>>} style={({ pressed }) => pressed && styles.pressed}>
+            {/* Активная вкладка — инверсная плашка, как выбранный день в
+                календаре: на фоне серых соседей её видно сразу. */}
             <ThemedView
-                type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
+                type={isFocused ? 'text' : 'backgroundElement'}
                 style={[styles.tabButtonView, inMenu && styles.tabButtonInMenu]}>
-                <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
+                {/* Начертание одно: жирная активная вкладка шире, и при
+                    переключении соседи сдвигались бы. */}
+                <ThemedText type="small" themeColor={isFocused ? 'background' : 'textSecondary'}>
                     {children}
                 </ThemedText>
             </ThemedView>
@@ -159,18 +169,30 @@ export function CustomTabList(props: TabListProps) {
     return (
         <View {...props} style={styles.tabListContainer}>
             {/* Шапка лежит поверх ленты, а не над ней: лента проезжает под ней.
-                Фон — сплошная заливка цветом страницы. */}
+                Отделяет её от ленты не обводка, а мягкая тень, а в тёмной теме,
+                где тени не видно, — фон чуть светлее страницы. */}
             <View
                 style={[
                     styles.innerContainer,
                     compact && styles.innerContainerCompact,
                     compact && open && styles.innerContainerOpen,
-                    { backgroundColor: colors.background, borderColor: colors.backgroundSelected },
+                    { backgroundColor: colors.backgroundRaised },
                 ]}>
                 <View style={[styles.bar, !compact && styles.barWide]}>
-                    <ThemedText type="smallBold" style={styles.brandText}>
-                        Память новомучеников
-                    </ThemedText>
+                    <Pressable
+                        onPress={() => router.navigate('/')}
+                        accessibilityRole="link"
+                        accessibilityLabel="Память — на главную"
+                        style={({ pressed }) => [styles.brand, pressed && styles.pressed]}>
+                        <Image
+                            source={require('@/assets/images/CircleLogo.svg')}
+                            style={styles.brandIcon}
+                            accessibilityIgnoresInvertColors
+                        />
+                        <ThemedText type="smallBold" style={styles.brandText}>
+                            Память
+                        </ThemedText>
+                    </Pressable>
                     {compact && <MenuButton open={open} onPress={() => setOpen((it) => !it)} />}
                 </View>
 
@@ -215,13 +237,13 @@ const styles = StyleSheet.create({
     innerContainer: {
         paddingVertical: Spacing.three,
         paddingHorizontal: Spacing.four,
-        borderRadius: Spacing.five,
+        borderRadius: HEADER_RADIUS,
         flexDirection: 'row',
         alignItems: 'center',
         flexGrow: 1,
         gap: Spacing.two,
         maxWidth: MaxContentWidth,
-        borderWidth: StyleSheet.hairlineWidth,
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
         overflow: 'hidden',
     },
     // В компактном виде панель раскрывается вниз, поэтому строка с названием и
@@ -241,9 +263,19 @@ const styles = StyleSheet.create({
     barWide: {
         flex: 1,
     },
-    brandText: {
+    brand: {
         marginRight: 'auto',
-        fontSize: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.two,
+    },
+    brandIcon: {
+        width: BRAND_SIZE,
+        height: BRAND_SIZE,
+    },
+    brandText: {
+        fontSize: 22,
+        lineHeight: BRAND_SIZE,
         fontFamily: HeadingFonts.bold,
     },
     more: {
@@ -252,7 +284,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 3,
         paddingHorizontal: Spacing.three,
-        borderRadius: Spacing.three,
+        borderRadius: BUTTON_RADIUS,
     },
     dot: {
         width: DOT_SIZE,
@@ -262,7 +294,7 @@ const styles = StyleSheet.create({
     iconButton: {
         height: BUTTON_HEIGHT,
         paddingHorizontal: Spacing.two,
-        borderRadius: Spacing.three,
+        borderRadius: BUTTON_RADIUS,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -277,11 +309,11 @@ const styles = StyleSheet.create({
     tabButtonView: {
         paddingVertical: Spacing.one,
         paddingHorizontal: Spacing.three,
-        borderRadius: Spacing.three,
+        borderRadius: BUTTON_RADIUS,
     },
     tabButtonInMenu: {
         paddingVertical: Spacing.two,
         paddingHorizontal: Spacing.three,
-        borderRadius: 999,
+        borderRadius: BUTTON_RADIUS,
     },
 });

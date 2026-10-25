@@ -1,11 +1,10 @@
-import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
-import { InfoPage, InfoParagraph, InfoSection } from '@/components/info-page';
-import { LinkRow } from '@/components/link-row';
+import { INFO_INSET, InfoPage, InfoParagraph, InfoSection } from '@/components/info-page';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { PlateButton } from '@/components/ui/plate-button';
+import { ButtonRadius, Spacing } from '@/constants/theme';
 import { useColorSchemePreference, type ColorSchemePreference } from '@/context/color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -45,9 +44,11 @@ function ThemeSection() {
     const { preference, setPreference } = useColorSchemePreference();
 
     return (
-        <InfoSection title="Тема оформления">
-            <View style={[styles.group, { borderColor: theme.separator }]}>
-                {THEME_OPTIONS.map((option, index) => {
+        <InfoSection title="Тема оформления" style={styles.section}>
+            {/* Варианты в ряд, поровну на всю ширину. Выбранный — на плашке,
+                как активная вкладка в веб-шапке. */}
+            <View accessibilityRole="radiogroup" style={styles.segments}>
+                {THEME_OPTIONS.map((option) => {
                     const selected = option.value === preference;
                     return (
                         <Pressable
@@ -56,19 +57,15 @@ function ThemeSection() {
                             accessibilityState={{ selected }}
                             onPress={() => setPreference(option.value)}
                             style={({ pressed }) => [
-                                styles.optionRow,
-                                index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: theme.separator },
-                                { opacity: pressed ? 0.7 : 1 },
+                                styles.segment,
+                                selected && { backgroundColor: theme.backgroundElement },
+                                pressed && styles.pressed,
                             ]}>
-                            <ThemedText style={styles.optionText}>{option.label}</ThemedText>
-                            {selected && (
-                                <SymbolView
-                                    name={{ ios: 'checkmark', android: 'check', web: 'check' }}
-                                    size={18}
-                                    tintColor={theme.text}
-                                    weight="semibold"
-                                />
-                            )}
+                            <ThemedText
+                                themeColor={selected ? 'text' : 'textSecondary'}
+                                style={[styles.optionText, selected && styles.segmentSelected]}>
+                                {option.label}
+                            </ThemedText>
                         </Pressable>
                     );
                 })}
@@ -106,7 +103,7 @@ function DownloadSection() {
     };
 
     return (
-        <InfoSection title="Скачать базу">
+        <InfoSection title="Скачать базу" style={styles.section}>
             <InfoParagraph>
                 Сведения сохранятся на устройстве и будут доступны без интернета, например в поездке. Выберите месяцы, которые вам нужны.
             </InfoParagraph>
@@ -115,9 +112,7 @@ function DownloadSection() {
                 <ThemedText themeColor="textSecondary" style={styles.note}>
                     Выбрано месяцев: {selected.length}
                 </ThemedText>
-                <Pressable accessibilityRole="button" onPress={toggleAll} hitSlop={8}>
-                    <ThemedText style={styles.selectAll}>{allSelected ? 'Снять все' : 'Выбрать все'}</ThemedText>
-                </Pressable>
+                <PlateButton label={allSelected ? 'Снять все' : 'Выбрать все'} onPress={toggleAll} />
             </View>
 
             <View style={styles.months}>
@@ -129,15 +124,18 @@ function DownloadSection() {
                             accessibilityRole="checkbox"
                             accessibilityState={{ checked: active }}
                             onPress={() => toggleMonth(index)}
+                            // Как вкладки веб-шапки: серые плашки без обводки,
+                            // выбранные — инверсные.
                             style={({ pressed }) => [
                                 styles.month,
-                                {
-                                    borderColor: active ? theme.text : theme.separator,
-                                    backgroundColor: active ? theme.backgroundSelected : 'transparent',
-                                    opacity: pressed ? 0.7 : 1,
-                                },
+                                { backgroundColor: active ? theme.text : theme.backgroundElement },
+                                pressed && styles.pressed,
                             ]}>
-                            <ThemedText style={styles.monthText}>{month.name}</ThemedText>
+                            <ThemedText
+                                themeColor={active ? 'background' : 'textSecondary'}
+                                style={styles.monthText}>
+                                {month.name}
+                            </ThemedText>
                         </Pressable>
                     );
                 })}
@@ -160,7 +158,22 @@ function DownloadSection() {
                 <ThemedText style={styles.size}>{selected.length ? formatSize(size) : 'ничего не выбрано'}</ThemedText>
             </View>
 
-            {selected.length > 0 && <LinkRow label="Скачать" onPress={startDownload} />}
+            {selected.length > 0 && (
+                // Главное действие страницы — самая заметная кнопка на ней:
+                // инверсная, во всю ширину колонки.
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={startDownload}
+                    style={({ pressed }) => [
+                        styles.download,
+                        { backgroundColor: theme.text },
+                        pressed && styles.pressed,
+                    ]}>
+                    <ThemedText themeColor="background" style={styles.downloadText}>
+                        Скачать
+                    </ThemedText>
+                </Pressable>
+            )}
         </InfoSection>
     );
 }
@@ -170,16 +183,33 @@ function formatSize(megabytes: number) {
     return `около ${megabytes.toFixed(1).replace('.', ',')} МБ`;
 }
 
+// Отступы крупнее, чем на текстовых страницах, — как между блоками на
+// странице новомученика: настройки читаются блоками, а не сплошным текстом.
 const styles = StyleSheet.create({
+    section: {
+        marginTop: Spacing.six,
+        gap: Spacing.three,
+    },
+    segments: {
+        flexDirection: 'row',
+        gap: Spacing.one,
+        paddingHorizontal: INFO_INSET,
+    },
+    segment: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: Spacing.two + Spacing.one,
+        borderRadius: Spacing.two,
+    },
+    segmentSelected: {
+        fontWeight: '600',
+    },
+    pressed: {
+        opacity: 0.7,
+    },
     group: {
         borderTopWidth: StyleSheet.hairlineWidth,
         borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    optionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: Spacing.three,
     },
     optionText: {
         fontSize: 17,
@@ -192,29 +222,25 @@ const styles = StyleSheet.create({
         fontWeight: '400',
     },
     monthsHeader: {
+        paddingHorizontal: INFO_INSET,
+        marginTop: Spacing.two,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-    },
-    selectAll: {
-        fontSize: 15,
-        lineHeight: 20,
-        fontWeight: '500',
-        textDecorationLine: 'underline',
     },
     months: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: Spacing.two,
-        marginBottom: Spacing.three,
+        paddingHorizontal: INFO_INSET,
+        marginBottom: Spacing.four,
     },
     month: {
         flexBasis: '30%',
         flexGrow: 1,
         alignItems: 'center',
         paddingVertical: Spacing.two + Spacing.one,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderRadius: Spacing.two,
+        borderRadius: ButtonRadius,
     },
     monthText: {
         fontSize: 15,
@@ -227,6 +253,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: Spacing.three,
         paddingVertical: Spacing.three,
+        paddingHorizontal: INFO_INSET,
     },
     photosLabel: {
         flex: 1,
@@ -236,7 +263,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'baseline',
         justifyContent: 'space-between',
-        marginTop: Spacing.three,
+        marginTop: Spacing.four,
+        paddingHorizontal: INFO_INSET,
+    },
+    download: {
+        marginTop: Spacing.four,
+        marginHorizontal: INFO_INSET,
+        alignItems: 'center',
+        paddingVertical: Spacing.three,
+        borderRadius: ButtonRadius,
+    },
+    downloadText: {
+        fontSize: 17,
+        lineHeight: 22,
+        fontWeight: '600',
     },
     size: {
         fontSize: 17,

@@ -11,8 +11,10 @@ import Animated, {
     withTiming,
     type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { HeadingFonts } from '@/constants/theme';
+import { useReportScroll } from '@/hooks/use-header-shadow';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Место, занятое кнопками шапки по бокам: заголовок не должен на них залезать. */
@@ -73,6 +75,17 @@ export function useScrollTitle(title: string | null) {
             if (shown !== previous) progress.value = withTiming(shown ? 1 : 0, FADE);
         },
         [inset]
+    );
+
+    // Тень под веб-шапкой, когда страницу прокрутили (см. ContainedHeader).
+    // Сообщается только смена «наверху / прокручено», а не каждый кадр.
+    const reportScroll = useReportScroll();
+    useAnimatedReaction(
+        () => scrollY.value > 0,
+        (isScrolled, previous) => {
+            if (isScrolled !== previous) scheduleOnRN(reportScroll, isScrolled ? 1 : 0);
+        },
+        [reportScroll]
     );
 
     useEffect(() => {

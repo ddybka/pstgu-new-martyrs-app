@@ -56,8 +56,24 @@ export type PersonsResponse = {
 
 export type UsePersonsOptions = {
     filter?: Record<string, unknown>;
-    dataFormat?: 'full' | 'item' | 'text';
 };
+
+/** Запись списка в формате `item`: реквизиты из `fields` лежат в `поля`. */
+type PersonItem = Omit<Person, 'Заголовок'> & {
+    поля?: Partial<Person>;
+};
+
+type PersonItemsResponse = Omit<PersonsResponse, 'items'> & { items: PersonItem[] };
+
+/**
+ * Что из полной биографии нужно карточке списка.
+ *
+ * Список грузится в формате `item` с этими реквизитами, а не в `full`: полная
+ * запись тянет события, источники и связи, это ~16 КБ на человека. В дни с
+ * полусотней новомучеников (30 октября) выходило под мегабайт JSON, который
+ * разбирался, клался в кэш и держался в памяти ради четырёх полей.
+ */
+const CARD_FIELDS = ['Заголовок', 'Рождение', 'Кончина', 'Фотографии'];
 
 /** Больше 50 за раз API не отдаёт */
 const PAGE_SIZE = 50;
@@ -74,9 +90,10 @@ export function memorialDayFilter(date = new Date()) {
     return dayOfYearFilter(date.getMonth() + 1, date.getDate());
 }
 
-export function buildPersonsUrl({ filter, dataFormat = 'full' }: UsePersonsOptions = {}) {
+export function buildPersonsUrl({ filter }: UsePersonsOptions = {}) {
     const params = new URLSearchParams({
-        data_format: dataFormat,
+        data_format: 'item',
+        fields: CARD_FIELDS.join(','),
         filter: JSON.stringify(filter ?? memorialDayFilter()),
     });
 
@@ -86,11 +103,13 @@ export function buildPersonsUrl({ filter, dataFormat = 'full' }: UsePersonsOptio
 /** API отдаёт дела страницами, поэтому собираем все страницы в один ответ */
 async function fetchAllPersons(url: string): Promise<PersonsResponse> {
     const items: Person[] = [];
-    let page: PersonsResponse;
+    let page: PersonItemsResponse;
 
     do {
-        page = await apiFetch<PersonsResponse>(`${url}&skip=${items.length}&take=${PAGE_SIZE}`);
-        items.push(...page.items);
+        page = await apiFetch<PersonItemsResponse>(`${url}&skip=${items.length}&take=${PAGE_SIZE}`);
+        // Реквизиты из `поля` поднимаются наверх: дальше запись выглядит так
+        // же, как полная, только без лишнего.
+        items.push(...page.items.map(({ поля, ...item }) => ({ ...item, ...поля }) as Person));
     } while (page.has_next && page.items.length > 0);
 
     return {

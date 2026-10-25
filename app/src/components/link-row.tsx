@@ -6,6 +6,10 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+/**
+ * Строка-ссылка во всю ширину страницы, с линиями сверху и снизу — как
+ * кнопки-строки на главной (`ListButton`). Отступ — у подписи внутри.
+ */
 export function LinkRow({ label, href, onPress }: { label: string; href?: string; onPress?: () => void }) {
     const theme = useTheme();
     const isMail = href?.startsWith('mailto:') ?? false;
@@ -84,6 +88,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: Spacing.two,
         paddingVertical: Spacing.three,
+        paddingHorizontal: Spacing.three,
     },
     linkText: {
         flexShrink: 1,

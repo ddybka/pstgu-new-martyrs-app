@@ -1,7 +1,16 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
-import { RefreshControl, StyleSheet, View } from "react-native";
-import Animated from "react-native-reanimated";
+import { useHeaderHeight } from "expo-router/react-navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Platform, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import Animated, {
+    Easing,
+    useAnimatedRef,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withSequence,
+    withTiming,
+} from "react-native-reanimated";
 
 import { BlockError } from "@/components/block-error";
 import { BlockLoading } from "@/components/block-loading";
@@ -13,10 +22,12 @@ import { PersonPhotos } from "@/components/person-photos";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { HeadingFonts, MaxContentWidth, Spacing } from "@/constants/theme";
+import { usePersonMapPoints } from "@/hooks/use-map-points";
 import { normalizePersonNumber, usePerson } from "@/hooks/use-person";
 import type { PersonEvent } from "@/hooks/use-persons";
 import { useScrollTitle } from "@/hooks/use-scroll-title";
 import { useTheme } from "@/hooks/use-theme";
+import { matchEvents } from "@/utils/match-events";
 import { formatPersonName } from "@/utils/person-name";
 
 import { shareLink } from "@/utils/share-link";
@@ -29,13 +40,51 @@ function formatEventDate(date: string | null | undefined) {
     return date;
 }
 
-function EventRow({ event }: { event: PersonEvent }) {
+/**
+ * Вспышка подсветки: фон проявляется, когда страница уже доехала до события,
+ * держится пару секунд и гаснет. Постоянной подсветки нет — блоки биографии
+ * обычно без фона.
+ */
+const FLASH_DELAY_MS = 300;
+const FLASH_IN = { duration: 250 };
+const FLASH_HOLD_MS = 2200;
+const FLASH_OUT = { duration: 600, easing: Easing.out(Easing.quad) };
+
+function EventRow({
+    event,
+    flashKey,
+    onLayout,
+}: {
+    event: PersonEvent;
+    /** Меняется — событие вспыхивает заново. `null` — без подсветки. */
+    flashKey: number | null;
+    onLayout: (event: LayoutChangeEvent) => void;
+}) {
+    const theme = useTheme();
+    const flash = useSharedValue(0);
+
+    useEffect(() => {
+        if (flashKey === null) return;
+        flash.value = 0;
+        // Анимации собираются заново на каждую вспышку: объект анимации
+        // Reanimated одноразовый, повторно его запускать нельзя.
+        flash.value = withSequence(
+            withDelay(FLASH_DELAY_MS, withTiming(1, FLASH_IN)),
+            withDelay(FLASH_HOLD_MS, withTiming(0, FLASH_OUT))
+        );
+    }, [flashKey, flash]);
+
+    const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
     const places = (event.Места ?? [])
         .map((place) => place.адрес)
         .filter((address): address is string => Boolean(address));
 
     return (
-        <View style={styles.event}>
+        <View style={[styles.event, styles.eventRow]} onLayout={onLayout}>
+            <Animated.View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundElement }, flashStyle]}
+            />
             <ThemedText type="smallBold" style={styles.eventDate}>
                 {formatEventDate(event?.датировка)}
             </ThemedText>
@@ -52,7 +101,9 @@ function EventRow({ event }: { event: PersonEvent }) {
 }
 
 export default function PagePerson() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    // `events` — id точек карты, с которых сюда пришли: страница прокручивается
+    // к первому их событию в биографии, и эти события вспыхивают.
+    const { id, events: eventsParam } = useLocalSearchParams<{ id: string; events?: string }>();
     const { person, loading, refreshing, notFound, error, stale, updatedAt, refresh } = usePerson(id);
     const theme = useTheme();
     const [copied, setCopied] = useState(false);
@@ -64,6 +115,56 @@ export default function PagePerson() {
     const textTop = useRef(0);
     const titleHeight = useRef(0);
     const updateTitleBottom = () => setTitleBottom(textTop.current + titleHeight.current);
+
+    const personEvents = useMemo(() => person?.События ?? [], [person]);
+    const mapPoints = usePersonMapPoints(number);
+
+    const paramHighlight = useMemo(() => {
+        const ids = new Set((eventsParam ?? '').split(',').filter(Boolean).map(Number));
+        if (ids.size === 0) return [];
+        return matchEvents(mapPoints.filter((point) => ids.has(point.id)), personEvents);
+    }, [eventsParam, mapPoints, personEvents]);
+
+    // Какие события сейчас вспыхивают. `key` растёт с каждым нажатием, чтобы
+    // повторное «Показать в биографии» на том же событии вспыхнуло снова.
+    const [flash, setFlash] = useState<{ indexes: number[]; key: number } | null>(null);
+    const flashEvents = (indexes: number[]) =>
+        setFlash((current) => ({ indexes, key: (current?.key ?? 0) + 1 }));
+
+    // Прокрутка к событию. Позиции известны только после раскладки, поэтому
+    // запрос запоминается и выполняется, как только нужная строка измерена.
+    const scrollRef = useAnimatedRef<Animated.ScrollView>();
+    const headerHeight = useHeaderHeight();
+    const eventTops = useRef<Record<number, number>>({});
+    const pendingScroll = useRef<number | null>(null);
+
+    const tryScroll = () => {
+        const index = pendingScroll.current;
+        if (index === null) return;
+        const top = eventTops.current[index];
+        if (top === undefined) return;
+
+        pendingScroll.current = null;
+        // На iOS шапка прозрачная и контент начинается под ней, на остальных
+        // платформах — после неё.
+        const covered = Platform.OS === 'ios' ? headerHeight : 0;
+        scrollRef.current?.scrollTo({ y: textTop.current + top - covered - Spacing.three, animated: true });
+    };
+
+    const scrollToEvent = (index: number) => {
+        pendingScroll.current = index;
+        tryScroll();
+    };
+
+    // С общей карты — сразу к первому подсвеченному событию, один раз: при
+    // обновлении страницы свайпом прыгать обратно незачем.
+    const scrolledFor = useRef<string | null>(null);
+    useEffect(() => {
+        if (paramHighlight.length === 0 || scrolledFor.current === eventsParam) return;
+        scrolledFor.current = eventsParam ?? null;
+        scrollToEvent(paramHighlight[0]);
+        flashEvents(paramHighlight);
+    }, [paramHighlight, eventsParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const menu = number === null ? null : <PersonMenu number={number} name={name} />;
 
@@ -96,6 +197,7 @@ export default function PagePerson() {
 
     return (
         <Animated.ScrollView
+            ref={scrollRef}
             onScroll={onScroll}
             scrollEventThrottle={16}
             style={[styles.scroll, { backgroundColor: theme.background }]}
@@ -128,6 +230,7 @@ export default function PagePerson() {
                         onLayout={(event) => {
                             textTop.current = event.nativeEvent.layout.y;
                             updateTitleBottom();
+                            tryScroll();
                         }}>
                         <View style={styles.containerTextMain}>
                             <ThemedText
@@ -144,8 +247,16 @@ export default function PagePerson() {
                             </ThemedText>
                         </View>
 
-                        {(person.События ?? []).map((event, index) => (
-                            <EventRow key={index} event={event} />
+                        {personEvents.map((event, index) => (
+                            <EventRow
+                                key={index}
+                                event={event}
+                                flashKey={flash?.indexes.includes(index) ? flash.key : null}
+                                onLayout={({ nativeEvent }) => {
+                                    eventTops.current[index] = nativeEvent.layout.y;
+                                    tryScroll();
+                                }}
+                            />
                         ))}
 
                         {person.дополнительный_текст && (
@@ -160,7 +271,16 @@ export default function PagePerson() {
                         )}
                     </View>
 
-                    {number !== null && <PersonMap number={number} />}
+                    {number !== null && (
+                        <PersonMap
+                            number={number}
+                            events={personEvents}
+                            onShowInText={(index) => {
+                                scrollToEvent(index);
+                                flashEvents([index]);
+                            }}
+                        />
+                    )}
 
                     <View style={styles.actions}>
                         <ThemedText type="smallBold" style={styles.actionTitle}>
@@ -213,6 +333,13 @@ const styles = StyleSheet.create({
     event: {
         gap: Spacing.half,
         paddingVertical: Spacing.three,
+    },
+    // Подсветка — во всю ширину, без скругления: строка выходит за поля
+    // текста на их ширину, а отступ возвращает внутри. Отступ есть всегда, и
+    // при подсветке строка не сдвигается.
+    eventRow: {
+        marginHorizontal: -Spacing.three,
+        paddingHorizontal: Spacing.three,
     },
     center: {
         flex: 1,

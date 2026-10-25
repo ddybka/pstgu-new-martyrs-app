@@ -1,7 +1,7 @@
 import type { LayerSpecification, StyleSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { useEffect, useState } from 'react';
 
-import { MAP_STYLES } from './map-config';
+import { MAP_FONTS, MAP_STYLES } from './map-config';
 
 /**
  * Правка чужого стиля под нужды проекта.
@@ -204,6 +204,12 @@ function loadStyle(url: string): Promise<StyleSpecification | string> {
     return loading;
 }
 
+export type LoadedMapStyle = {
+    style: StyleSpecification | string;
+    /** Шрифт для своих подписей — из глифов именно этой подложки. */
+    font: readonly string[];
+};
+
 /**
  * Стиль подложки под текущую тему. `null` — пока скачивается.
  *
@@ -211,22 +217,26 @@ function loadStyle(url: string): Promise<StyleSpecification | string> {
  * изменяемого модульного значения не является для React источником обновления,
  * и с включённым React Compiler оно вдобавок мемоизируется — хук навсегда
  * оставался бы с первым (пустым) ответом.
+ *
+ * Шрифт отдаётся вместе со стилем, а не выводится из темы на месте: при смене
+ * темы старая подложка ещё какое-то время на экране, пока качается новая, и
+ * шрифт от новой темы на старой подложке ломал бы тайлы (см. MAP_FONTS).
  */
-export function useMapStyle(isDark: boolean): StyleSpecification | string | null {
-    const url = isDark ? MAP_STYLES.dark : MAP_STYLES.light;
-    const [style, setStyle] = useState<StyleSpecification | string | null>(null);
+export function useMapStyle(isDark: boolean): LoadedMapStyle | null {
+    const scheme = isDark ? 'dark' : 'light';
+    const [loaded, setLoaded] = useState<LoadedMapStyle | null>(null);
 
     useEffect(() => {
         let cancelled = false;
 
-        loadStyle(url).then((next) => {
-            if (!cancelled) setStyle(next);
+        loadStyle(MAP_STYLES[scheme]).then((style) => {
+            if (!cancelled) setLoaded({ style, font: MAP_FONTS[scheme] });
         });
 
         return () => {
             cancelled = true;
         };
-    }, [url]);
+    }, [scheme]);
 
-    return style;
+    return loaded;
 }

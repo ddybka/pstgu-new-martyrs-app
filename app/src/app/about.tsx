@@ -74,6 +74,7 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.four,
         gap: Spacing.three,
     },
+    // Фотография во всю ширину, от края до края — отступ только у текста.
     image: {
         width: '100%',
         aspectRatio: 800 / 562,
