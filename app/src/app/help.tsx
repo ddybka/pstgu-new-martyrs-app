@@ -1,6 +1,34 @@
 import { InfoList, InfoPage, InfoParagraph, InfoSection } from "@/components/info-page";
 import { LinkRow, mailtoHref } from "@/components/link-row";
 
+import { Metadata } from "expo-router/server";
+import { SITE_URL } from "@/constants/site";
+
+export function generateMetadata(): Metadata {
+    const title = 'Помощь в развитии проекта "Память новомучеников" и расширении базы данных за Христа пострадавших.';
+    const description = 'Как помочь проекту "Память новомучиков": передать сведения, фотографии и документы о новомучениках, которых нет в базе, или дополнить существующие материалы. Контакты для связи.';
+
+    const url = `${SITE_URL}/help`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 const CONTACT_EMAIL = 'pstbinm@yandex.ru';
 
 const CONTACT_HREF = mailtoHref(CONTACT_EMAIL, {

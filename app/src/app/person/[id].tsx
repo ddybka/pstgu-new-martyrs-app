@@ -33,6 +33,34 @@ import { formatPersonName } from "@/utils/person-name";
 import { shareLink } from "@/utils/share-link";
 import { personUrl } from "@/constants/site";
 
+import { Metadata } from "expo-router/server";
+import { SITE_URL } from "@/constants/site";
+
+export function generateMetadata(): Metadata {
+    const title = 'Новомученик — житие, события и места служения';
+    const description = 'Житие новомученика: события биографии, места служения, ареста и захоронения, фотографии и карта связанных мест.';
+
+    const url = `${SITE_URL}/person/id`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 function formatEventDate(date: string | null | undefined) {
     if (date == null) return 'Дата неизвестна';
     if (/^\d{4}$/.test(date.trim())) return `${date} г.`;

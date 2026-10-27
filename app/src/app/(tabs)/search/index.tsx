@@ -10,6 +10,34 @@ import { useTheme } from '@/hooks/use-theme';
 import { describeError } from '@/utils/api-fetch';
 import { plural } from '@/utils/plural';
 
+import { Metadata } from 'expo-router/server';
+import { SITE_URL } from '@/constants/site';
+
+export function generateMetadata(): Metadata {
+    const title = 'Поиск новомучеников по ключевым словам из биографии.';
+    const description = 'Ищите новомучеников по ключевым словам: сан, имя, фамилия, отчество, годы жизни.';
+
+    const url = `${SITE_URL}/search`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 const PLACEHOLDER = 'Найти информацию'
 
 export default function SearchScreen() {
