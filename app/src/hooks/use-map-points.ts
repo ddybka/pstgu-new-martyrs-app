@@ -32,6 +32,8 @@ import { readCache, writeCache } from '@/utils/api-cache';
  */
 
 const SOURCE = 'http://map.nmbook.ru/map/all_points';
+/** Сначала HTTPS; не ответил — тот же адрес по HTTP (как у API, см. `api-fetch`). */
+const SOURCES = [SOURCE.replace(/^http:/, 'https:'), SOURCE];
 // Версия в ключе: копия прошлого формата (без текстов событий) читаться не
 // должна — с ней карта показала бы точки без описаний.
 const CACHE_KEY = 'map-points-v2';
@@ -154,13 +156,29 @@ function getSnapshot() {
     return points;
 }
 
+async function fetchFirstAvailable(signal: AbortSignal): Promise<Response> {
+    let lastError: unknown;
+
+    for (const url of SOURCES) {
+        try {
+            const response = await fetch(url, { signal });
+            if (!response.ok) throw new Error(`${url} ответил ${response.status}`);
+            return response;
+        } catch (error) {
+            if (signal.aborted) throw error;
+            lastError = error;
+        }
+    }
+
+    throw lastError;
+}
+
 async function fetchPoints(): Promise<Snapshot> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(SOURCE, { signal: controller.signal });
-        if (!response.ok) throw new Error(`${SOURCE} ответил ${response.status}`);
+        const response = await fetchFirstAvailable(controller.signal);
 
         const raw = (await response.json()) as RawPoint[];
         if (!Array.isArray(raw) || raw.length === 0) throw new Error('Пустая выдача точек');

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import type { ImageSource } from 'expo-image';
 
-import { API_URL, ensureToken, peekToken } from '@/utils/api-fetch';
+import { httpsUnavailable } from '@/utils/api-fetch';
+import { localPhotoUri } from '@/utils/offline-photos';
 
 export type PersonPhoto = {
     имя_файла?: string;
@@ -14,7 +15,9 @@ export type PersonPhoto = {
 export type PersonPhotoItem = {
     fileId: string;
     caption: string | null;
-    source: ImageSource | null;
+    source: ImageSource;
+    /** Тот же снимок по HTTP — если по HTTPS он не загрузился. */
+    fallback: ImageSource | null;
 };
 
 export type UsePersonPhotosOptions = {
@@ -39,63 +42,43 @@ export function getPersonPhotos(photos: unknown, { full = false }: UsePersonPhot
 }
 
 /**
- * Файлы закрыты токеном, но качать их в JS и гнать через base64, как в вебе,
- * не нужно: expo-image умеет сам сходить по URL с заголовком Authorization и
- * положить результат в нативный кэш на диске. Отсюда — только адреса и токен
- * (один на все снимки), загрузку и её состояние ведёт сам компонент.
+ * Сжатые снимки открыто лежат на img.nmbook.ru — без токена, с кэшем на годы.
+ * Имя файла — id из базы как есть, вместе с расширением.
+ *
+ * Если HTTPS не ответил, тот же файл берётся по HTTP (`fallback`, см.
+ * компоненты в `person-photos`): так же, как с API (см. `api-fetch`).
  */
-export function usePersonPhotos(photos: unknown, options: UsePersonPhotosOptions = {}) {
-    const { full = false } = options;
-    // Массив сравнивается по содержимому: объект дела после обновления — новый,
-    // а снимки в нём те же, и токен из-за этого перезапрашивать незачем.
-    const signature = JSON.stringify(getPersonPhotos(photos, { full }));
-    const items = useMemo(
-        () => JSON.parse(signature) as { fileId: string; caption: string | null }[],
+const PHOTO_HOST = 'img.nmbook.ru';
+
+export function photoUrl(fileId: string, secure = true) {
+    return `${secure ? 'https' : 'http'}://${PHOTO_HOST}/${encodeURIComponent(fileId)}`;
+}
+
+/**
+ * Адреса снимков дела. Скачанные для чтения без сети берутся с устройства
+ * (см. `offline-download`), остальные — с img.nmbook.ru; загрузку и её
+ * состояние ведёт сам компонент.
+ */
+export function usePersonPhotos(photos: unknown): { photos: PersonPhotoItem[] } {
+    // Массив сравнивается по содержимому: объект дела после обновления —
+    // новый, а снимки в нём те же, и пересобирать адреса незачем.
+    const signature = JSON.stringify(getPersonPhotos(photos));
+
+    const result = useMemo(
+        () =>
+            (JSON.parse(signature) as { fileId: string; caption: string | null }[]).map(({ fileId, caption }) => {
+                const local = localPhotoUri(fileId);
+                // HTTPS уже признан недоступным — сразу HTTP, без ожидания.
+                const secure = !httpsUnavailable();
+                return {
+                    fileId,
+                    caption,
+                    source: { uri: local ?? photoUrl(fileId, secure) },
+                    fallback: local || !secure ? null : { uri: photoUrl(fileId, false) },
+                };
+            }),
         [signature]
     );
-    const hasPhotos = items.length > 0;
 
-    // Токен почти всегда уже в памяти: его получают при запуске (см.
-    // `LoginProvider`). Тогда адреса снимков готовы в первой же отрисовке, и
-    // карточка не перерисовывается ещё дважды после монтирования — в списке
-    // на сотню карточек это и были лишние кадры при прокрутке.
-    const [token, setToken] = useState<string | null>(peekToken);
-    const [error, setError] = useState<Error | null>(null);
-    const needsToken = hasPhotos && token === null;
-
-    useEffect(() => {
-        if (!needsToken) return;
-
-        let cancelled = false;
-
-        ensureToken()
-            .then((value) => {
-                if (!cancelled) setToken(value);
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                console.error('Ошибка загрузки изображения:', err);
-                setError(err instanceof Error ? err : new Error(String(err)));
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [needsToken]);
-
-    const loading = needsToken && error === null;
-
-    const result: PersonPhotoItem[] = useMemo(
-        () =>
-            items.map(({ fileId, caption }) => ({
-                fileId,
-                caption,
-                source: token
-                    ? { uri: `${API_URL}files/${fileId}/content`, headers: { Authorization: `Bearer ${token}` } }
-                    : null,
-            })),
-        [items, token]
-    );
-
-    return { photos: result, loading, error };
+    return { photos: result };
 }

@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 import { getSecureItem, removeSecureItem, setSecureItem } from './secure-cache';
 
 /**
@@ -7,6 +9,54 @@ import { getSecureItem, removeSecureItem, setSecureItem } from './secure-cache';
  * можно только так, напрямую: `process.env[name]` он не подставит.
  */
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://api.nmbook.ru').replace(/\/?$/, '/');
+
+/**
+ * Запасной адрес — тот же сервер по обычному HTTP.
+ *
+ * HTTPS у api.nmbook.ru бывает недоступен: сертификат просрочен, порт закрыт
+ * в сети пользователя. Тогда запрос повторяется по HTTP (домены разрешены для
+ * него в нативных сборках, см. `plugins/with-cleartext-domain`). В вебе
+ * запасного адреса нет, если сайт открыт по HTTPS: браузер такой запрос всё
+ * равно не выпустит (mixed content).
+ */
+const FALLBACK_URL = (() => {
+    if (!API_URL.startsWith('https://')) return null;
+    if (Platform.OS === 'web' && globalThis.location?.protocol === 'https:') return null;
+    return `http://${API_URL.slice('https://'.length)}`;
+})();
+
+/**
+ * Если HTTPS не ответил, а HTTP — да, дальше запросы идут сразу по HTTP, чтобы
+ * не ждать отказа HTTPS каждый раз. Через это время HTTPS пробуется снова.
+ */
+const HTTPS_RETRY_MS = 15 * 60 * 1000;
+
+let fallbackSince: number | null = null;
+
+/**
+ * HTTPS к серверу сейчас недоступен: API уже перешёл на HTTP, или не
+ * загрузился по HTTPS снимок. Снимки тогда сразу берутся по HTTP, не ожидая
+ * каждый свой таймаут (см. `usePersonPhotos`). Сервер у API и снимков один, и
+ * режут HTTPS к нему обычно целиком — по имени домена.
+ */
+export function httpsUnavailable() {
+    activeBase();
+    return fallbackSince !== null && FALLBACK_URL !== null;
+}
+
+export function markHttpsUnavailable() {
+    if (FALLBACK_URL && fallbackSince === null) {
+        fallbackSince = Date.now();
+        console.warn('HTTPS недоступен, запросы идут по HTTP');
+    }
+}
+
+/** Адрес API, по которому сервер сейчас отвечает. */
+function activeBase() {
+    if (fallbackSince !== null && Date.now() - fallbackSince > HTTPS_RETRY_MS) fallbackSince = null;
+    return fallbackSince !== null && FALLBACK_URL ? FALLBACK_URL : API_URL;
+}
+
 
 const API_LOGIN = process.env.EXPO_PUBLIC_API_LOGIN ?? '';
 const API_PASSWORD = process.env.EXPO_PUBLIC_API_PASSWORD ?? '';
@@ -119,6 +169,31 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}) {
     }
 }
 
+/**
+ * Запрос по пути API: сначала по текущему адресу, при сетевой ошибке — по
+ * второму (HTTPS ↔ HTTP). Ответ сервера с любым статусом — не повод
+ * переключаться: сервер доступен.
+ */
+async function fetchApi(path: string, options: RequestInit = {}) {
+    const base = activeBase();
+
+    try {
+        return await fetchWithTimeout(`${base}${path}`, options);
+    } catch (error) {
+        if (!(error instanceof NetworkError) || !FALLBACK_URL) throw error;
+
+        const other = base === API_URL ? FALLBACK_URL : API_URL;
+        const response = await fetchWithTimeout(`${other}${path}`, options).catch(() => {
+            throw error;
+        });
+
+        fallbackSince = other === FALLBACK_URL ? Date.now() : null;
+        if (fallbackSince !== null) console.warn('HTTPS недоступен, запросы к API идут по HTTP');
+
+        return response;
+    }
+}
+
 async function withRetry<T>(run: () => Promise<T>): Promise<T> {
     let lastError: unknown;
 
@@ -195,7 +270,7 @@ async function requestToken() {
     const body = `username=${encodeURIComponent(API_LOGIN)}&password=${encodeURIComponent(API_PASSWORD)}`;
 
     const response = await withRetry(() =>
-        fetchWithTimeout(`${API_URL}login`, {
+        fetchApi('login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body,
@@ -240,7 +315,7 @@ export async function ensureToken() {
 export async function apiFetch<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
     const send = async (token: string) =>
         withRetry(() =>
-            fetchWithTimeout(`${API_URL}${url.replace(/^\//, '')}`, {
+            fetchApi(url.replace(/^\//, ''), {
                 ...options,
                 headers: {
                     Accept: 'application/json',

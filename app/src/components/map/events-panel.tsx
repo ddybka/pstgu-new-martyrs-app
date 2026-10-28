@@ -4,10 +4,13 @@ import { FlatList, Pressable, StyleSheet, TextInput, View, type StyleProp, type 
 
 import { KIND_COLORS, POINT_KINDS, kindColor, type MartyrPoint } from './map-config';
 
+import { PersonRankLine } from '@/components/person-rank-line';
 import { ThemedText } from '@/components/themed-text';
+import { useNameOrder } from '@/context/name-order';
 import { ButtonRadius, HeadingFonts, Spacing, SurfaceRadius, SurfaceShadow } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { compareDisplayedNames, splitPersonTitle } from '@/utils/person-name';
 import { plural } from '@/utils/plural';
 
 /** С этого числа людей в списке появляется поиск по ФИО. */
@@ -34,7 +37,7 @@ function groupByPerson(events: readonly MartyrPoint[]): PersonEvents[] {
         else groups.set(event.number, { number: event.number, title: event.title, events: [event] });
     }
 
-    return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+    return [...groups.values()];
 }
 
 const KIND_LABELS: Record<string, string> = Object.fromEntries(
@@ -57,30 +60,52 @@ export function EventsPanel({
     onClose,
     onOpenPerson,
     style,
+    found = false,
 }: {
     events: readonly MartyrPoint[];
     onClose: () => void;
     onOpenPerson: (number: number, eventIds: number[]) => void;
     style?: StyleProp<ViewStyle>;
+    /**
+     * Это выдача поиска по карте: в заголовке «Найдено», а своего поиска по
+     * ФИО нет — запрос уже вводят над картой.
+     */
+    found?: boolean;
 }) {
     const theme = useTheme();
     const colors = KIND_COLORS[useColorScheme()];
     const [query, setQuery] = useState('');
+    const { order } = useNameOrder();
 
-    const groups = useMemo(() => groupByPerson(events), [events]);
+    // Заголовок — в том же порядке ФИО, что и во всём приложении; ищется и
+    // по нему, и по исходному, справочному.
+    const groups = useMemo(
+        () =>
+            groupByPerson(events).map((group) => {
+                const { holiness, name } = splitPersonTitle(group.title, order);
+                return {
+                    ...group,
+                    title: name,
+                    holiness,
+                    haystack: `${name}\n${group.title}`.toLocaleLowerCase('ru'),
+                };
+            }).sort((a, b) => compareDisplayedNames(a.title, b.title)),
+        [events, order]
+    );
     const needle = query.trim().toLocaleLowerCase('ru');
     const shown = useMemo(
         () =>
             needle
-                ? groups.filter((group) => group.title.toLocaleLowerCase('ru').includes(needle))
+                ? groups.filter((group) => group.haystack.includes(needle))
                 : groups,
         [groups, needle]
     );
 
-    const summary =
+    const counted =
         groups.length === 1
             ? plural(events.length, 'событие', 'события', 'событий')
             : `${plural(events.length, 'событие', 'события', 'событий')} · ${plural(groups.length, 'человек', 'человека', 'человек')}`;
+    const summary = found ? `Найдено: ${counted}` : counted;
 
     return (
         <View
@@ -108,7 +133,7 @@ export function EventsPanel({
                 </Pressable>
             </View>
 
-            {groups.length >= SEARCH_FROM && (
+            {!found && groups.length >= SEARCH_FROM && (
                 <TextInput
                     value={query}
                     onChangeText={setQuery}
@@ -144,6 +169,7 @@ export function EventsPanel({
                             styles.group,
                             (pressed || hovered) && { backgroundColor: theme.backgroundElement },
                         ]}>
+                        <PersonRankLine holiness={item.holiness} style={styles.holiness} />
                         <ThemedText style={styles.title}>{item.title}</ThemedText>
 
                         <View style={styles.events}>
@@ -204,6 +230,12 @@ const styles = StyleSheet.create({
     group: {
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.three,
+    },
+    holiness: {
+        fontSize: 14,
+        lineHeight: 18,
+        fontWeight: '400',
+        marginBottom: Spacing.half,
     },
     title: {
         marginBottom: Spacing.two,

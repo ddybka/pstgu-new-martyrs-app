@@ -6,10 +6,10 @@ const { AndroidConfig, withAndroidManifest, withDangerousMod, withInfoPlist } = 
 /**
  * Разрешает обычный HTTP к перечисленным доменам, а не ко всем сразу.
  *
- * API базы (api.nmbook.ru) и карта (map.nmbook.ru) работают только по http —
- * https на серверах не отвечает. iOS (App Transport Security) и Android с
- * такие запросы молча режут, и в приложении это выглядит как «нет связи
- * с сервером».
+ * API базы (api.nmbook.ru), карта (map.nmbook.ru) и снимки (img.nmbook.ru)
+ * берутся по https, а при его отказе — по http. Такие запросы iOS (App
+ * Transport Security) и Android молча режут, и в приложении это выглядит как
+ * «нет связи с сервером».
  *
  * Правится через плагин, а не в ios/ и android/: они генерируются `prebuild`
  * и в git не лежат.

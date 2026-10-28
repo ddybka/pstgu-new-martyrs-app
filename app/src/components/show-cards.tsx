@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useMemo, type ReactElement } from "react";
 import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
 import { OfflineNotice } from "./offline-notice";
@@ -7,9 +7,11 @@ import { PersonCardsSkeleton } from "./person-card-skeleton";
 import { ThemedText } from "./themed-text";
 
 import { MaxContentWidth, Spacing, WebHeaderInset } from "@/constants/theme";
+import { useNameOrder } from "@/context/name-order";
 import { Person } from "@/hooks/use-persons";
 import { useTheme } from "@/hooks/use-theme";
 import { describeError } from "@/utils/api-fetch";
+import { compareDisplayedNames, formatPersonName } from "@/utils/person-name";
 
 /**
  * Сколько экранов карточек держать смонтированными (вместе с видимым): по
@@ -53,6 +55,18 @@ export function ShowCards({
     error?: unknown;
 }) {
     const theme = useTheme();
+    const { order } = useNameOrder();
+
+    // API отдаёт список по фамилии — в справочном порядке он и остаётся. Если
+    // первым показано имя, список сортируется по нему (см. compareDisplayedNames).
+    const sorted = useMemo(() => {
+        if (order === 'surname-first') return persons;
+
+        return persons
+            .map((person) => ({ person, name: formatPersonName(person.ФИО, order) ?? person.Заголовок ?? '' }))
+            .sort((a, b) => compareDisplayedNames(a.name, b.name))
+            .map(({ person }) => person);
+    }, [persons, order]);
 
     const listHeader = (
         <>
@@ -77,7 +91,7 @@ export function ShowCards({
                 Platform.OS === 'web' && styles.containerWeb,
             ]}
             contentInsetAdjustmentBehavior="automatic"
-            data={loading ? [] : persons}
+            data={loading ? [] : sorted}
             keyExtractor={(person, index) => String(person.Номер ?? index)}
             // Карточки досоздаются небольшими пачками с паузой — без
             // запинок посреди прокрутки.

@@ -1,11 +1,21 @@
 /**
- * Имя новомученика в порядке «Имя Отчество Фамилия».
+ * Имя новомученика в выбранном в настройках порядке.
  *
  * В базе `ФИО` записано по-справочному: фамилия вперёд и заглавными
  * («АРТЕМЬЕВ Фома Константинович»), у монашествующих вперёд монашеское имя, а
- * мирское в скобках («АВГУСТА (Зашук Лидия Васильевна)»). Для краткой
- * карточки порядок меняется на привычный, а заглавными остаётся имя.
+ * мирское в скобках («АВГУСТА (Зашук Лидия Васильевна)»). По умолчанию
+ * порядок меняется на привычный — «Имя Отчество Фамилия», а заглавными
+ * остаётся имя. Историкам привычнее справочный вид, как в базе, — его можно
+ * выбрать в настройках (см. `context/name-order`).
  */
+
+/**
+ * - `name-first` — «ФОМА Константинович Артемьев», «АФАНАСИЙ (Сергей
+ *   Григорьевич Сахаров)»;
+ * - `surname-first` — как в базе: «АРТЕМЬЕВ Фома Константинович»,
+ *   «АФАНАСИЙ (Сахаров Сергей Григорьевич)».
+ */
+export type NameOrder = 'name-first' | 'surname-first';
 
 const LOWER = /[а-яёa-z]/;
 
@@ -112,10 +122,19 @@ function formatSecularName(text: string, upperName: boolean): string {
         .join('; ');
 }
 
-export function formatPersonName(fio: string | undefined | null): string | null {
+function normalizeSpaces(text: string) {
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+export function formatPersonName(
+    fio: string | undefined | null,
+    order: NameOrder = 'name-first'
+): string | null {
     if (!fio) return null;
 
-    const text = fio.replace(/\s+/g, ' ').trim();
+    const text = normalizeSpaces(fio);
+    if (order === 'surname-first') return text;
+
     const tokens = tokenize(text);
 
     const secular = tokens.findIndex((token) => isGroup(token) && hasLower(token));
@@ -140,3 +159,70 @@ export function capitalize(value: string | undefined | null): string | null {
 }
 
 export const formatRank = capitalize;
+
+const collator = new Intl.Collator('ru', { sensitivity: 'base' });
+
+/**
+ * Сравнение имён по алфавиту — для порядка «Имя Отчество Фамилия».
+ *
+ * API сортирует по ФИО в справочном виде, то есть по фамилии. Когда первым
+ * показано имя, такой порядок на глаз выглядит случайным: «ПАВЕЛ … Алмазов»,
+ * «КОНСТАНТИН … Андреюк», «НИКОЛАЙ … Архангельский». Поэтому список
+ * упорядочивается заново — по тому, что видно на экране.
+ */
+export function compareDisplayedNames(a: string, b: string) {
+    return collator.compare(a, b);
+}
+
+/**
+ * Заголовок для списков и страницы: у канонизированных перед именем — чин
+ * святости, как в заголовке биографии в базе: «Исповедник АФАНАСИЙ (Сахаров
+ * Сергей Григорьевич)».
+ */
+export function formatPersonHeading(
+    fio: string | undefined | null,
+    holiness: string | undefined | null,
+    order: NameOrder = 'name-first'
+): string | null {
+    const name = formatPersonName(fio, order);
+    if (!name) return null;
+
+    const rank = capitalize(holiness);
+    return rank ? `${rank} ${name}` : name;
+}
+
+/**
+ * Заголовок биографии целиком — «[Чин святости ]ФИО[, сан]», как его отдаёт
+ * карта (`humanFio` у map.nmbook.ru). Чин и сан остаются на местах, порядок
+ * меняется только в самом ФИО.
+ */
+export function formatPersonTitle(title: string, order: NameOrder = 'name-first'): string {
+    const { holiness, name } = splitPersonTitle(title, order);
+    return holiness ? `${holiness} ${name}` : name;
+}
+
+/**
+ * Заголовок биографии, разобранный на чин святости и остальное — для показа
+ * чина отдельной строкой над именем (см. `PersonRankLine`).
+ */
+export function splitPersonTitle(
+    title: string,
+    order: NameOrder = 'name-first'
+): { holiness: string | null; name: string } {
+    const text = normalizeSpaces(title);
+
+    // Чин святости — слова со строчными буквами до первого слова заглавными.
+    const tokens = text.split(' ');
+    let index = 0;
+    while (index < tokens.length - 1 && hasLower(tokens[index]) && !tokens[index].startsWith('(')) index += 1;
+
+    if (index === 0 || !/^[А-ЯЁA-Z-]{2,}/.test(tokens[index])) {
+        return { holiness: null, name: formatPersonName(text, order) ?? text };
+    }
+
+    return {
+        holiness: tokens.slice(0, index).join(' '),
+        name: formatPersonName(tokens.slice(index).join(' '), order) ?? '',
+    };
+}
+

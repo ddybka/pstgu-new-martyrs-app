@@ -1,14 +1,13 @@
 import { router } from 'expo-router';
 import { Suspense, lazy, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ListButton } from './list-button';
 import { KIND_COLORS, POINT_KINDS, kindColor } from './map/map-config';
 import { ThemedText } from './themed-text';
 import { Expandable } from './ui/expandable';
 import { PlateButton } from './ui/plate-button';
 
-import { HeadingFonts, Spacing } from '@/constants/theme';
+import { ButtonRadius, HeadingFonts, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { boundsOf, usePersonMapPoints } from '@/hooks/use-map-points';
 import type { PersonEvent } from '@/hooks/use-persons';
@@ -30,10 +29,11 @@ function sameIds(a: readonly number[], b: readonly number[]) {
 /**
  * Карта на странице новомученика: его места.
  *
- * Карта без жестов — она внутри прокрутки страницы, и сдвиг пальцем спорил бы
- * с ней. Нажатие на точку раскрывает под картой, что случилось в этом месте;
- * повторное нажатие на ту же точку сворачивает. Общая карта — строкой-кнопкой
- * ниже, как «Поделиться».
+ * Карта двигается и масштабируется, но с поправкой на то, что она внутри
+ * прокрутки страницы (`interactive="embedded"`): без поворота и наклона, а в
+ * вебе колесо по-прежнему листает страницу. Нажатие на точку раскрывает под
+ * картой, что случилось в этом месте; повторное нажатие на ту же точку
+ * сворачивает. Общая карта — кнопкой ниже.
  */
 export function PersonMap({
     number,
@@ -85,7 +85,7 @@ export function PersonMap({
                     <MartyrsMap
                         points={points}
                         bounds={bounds}
-                        interactive={false}
+                        interactive="embedded"
                         selected={open ? shownIds : NOTHING_SELECTED}
                         onEventsPress={select}
                     />
@@ -121,11 +121,15 @@ export function PersonMap({
                 Нажмите на точку, чтобы увидеть, что случилось в этом месте.
             </ThemedText>
 
-            <ListButton
-                label="Открыть на общей карте"
+            {/* Главное действие блока — инверсная кнопка, как «Скачать» в настройках. */}
+            <Pressable
+                accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/map', params: { person: number } })}
-                last
-            />
+                style={({ pressed }) => [styles.open, { backgroundColor: theme.text }, pressed && styles.pressed]}>
+                <ThemedText themeColor="background" style={styles.openText}>
+                    Открыть на общей карте
+                </ThemedText>
+            </Pressable>
         </View>
     );
 }
@@ -177,5 +181,19 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.three,
         fontWeight: 400,
+    },
+    open: {
+        marginHorizontal: Spacing.three,
+        alignItems: 'center',
+        paddingVertical: Spacing.three,
+        borderRadius: ButtonRadius,
+    },
+    openText: {
+        fontSize: 17,
+        lineHeight: 22,
+        fontWeight: '600',
+    },
+    pressed: {
+        opacity: 0.7,
     },
 });

@@ -13,6 +13,9 @@ export default function AppTabs() {
             backgroundColor={colors.background}
             disableTransparentOnScrollEdge={!isLiquidGlassAvailable()}
             indicatorColor={colors.backgroundElement}
+            // Верхняя панель вкладок на iPad берёт цвет активной вкладки из
+            // tintColor и игнорирует iconColor/labelStyle — без него будет синий.
+            tintColor={colors.text}
             iconColor={{ selected: colors.text }}
             labelStyle={{ selected: { color: colors.text } }}>
             <NativeTabs.Trigger name="(today)">

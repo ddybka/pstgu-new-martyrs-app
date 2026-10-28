@@ -2,22 +2,16 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from './themed-text';
 
-import { Spacing } from '@/constants/theme';
+import { ButtonRadius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Кнопка-строка во всю ширину экрана, с тонкими линиями сверху и снизу:
- * «Помочь проекту» и «О проекте».
+ * Второстепенная кнопка во всю ширину колонки — скруглённая, на серой
+ * плашке, как «Остановить» в настройках: «Помочь проекту», «О проекте»,
+ * «Настройки», «Поделиться». Главное действие экрана — инверсное, его
+ * кнопки рисуются отдельно.
  */
-export function ListButton({
-    label,
-    onPress,
-    last = false,
-}: {
-    label: string;
-    onPress?: () => void;
-    last?: boolean;
-}) {
+export function ListButton({ label, onPress }: { label: string; onPress?: () => void }) {
     const theme = useTheme();
 
     return (
@@ -26,23 +20,29 @@ export function ListButton({
             onPress={onPress}
             style={({ pressed }) => [
                 styles.button,
-                last && styles.last,
-                { borderColor: theme.separator, opacity: pressed ? 0.7 : 1 },
+                { backgroundColor: theme.backgroundElement },
+                pressed && styles.pressed,
             ]}>
-            <ThemedText>{label}</ThemedText>
+            <ThemedText style={styles.label}>{label}</ThemedText>
         </Pressable>
     );
 }
 
 const styles = StyleSheet.create({
     button: {
-        width: '100%',
-        borderTopWidth: StyleSheet.hairlineWidth,
+        marginHorizontal: Spacing.three,
+        marginBottom: Spacing.two,
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: Spacing.three,
+        borderRadius: ButtonRadius,
     },
-    last: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
+    pressed: {
+        opacity: 0.7,
+    },
+    label: {
+        fontSize: 17,
+        lineHeight: 22,
+        fontWeight: '600',
     },
 });

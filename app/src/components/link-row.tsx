@@ -7,8 +7,8 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Строка-ссылка во всю ширину страницы, с линиями сверху и снизу — как
- * кнопки-строки на главной (`ListButton`). Отступ — у подписи внутри.
+ * Строка-ссылка во всю ширину страницы, с линиями сверху и снизу.
+ * Отступ — у подписи внутри.
  */
 export function LinkRow({ label, href, onPress }: { label: string; href?: string; onPress?: () => void }) {
     const theme = useTheme();
@@ -17,7 +17,7 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
     const handlePress = href
         ? isMail
             ? () => openMail(href)
-            : () => openBrowserAsync(href, { presentationStyle: WebBrowserPresentationStyle.AUTOMATIC })
+            : () => openLink(href)
         : onPress;
 
     return (
@@ -50,6 +50,21 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
             </View>
         </Pressable>
     );
+}
+
+/**
+ * На телефоне — встроенный браузер поверх приложения, чтобы из него было
+ * легко вернуться. В вебе — просто новая вкладка: `openBrowserAsync` там
+ * открывает отдельное маленькое окно посреди экрана (window.open с
+ * размерами), а на компьютере этого никто не ждёт.
+ */
+function openLink(href: string) {
+    if (Platform.OS === 'web') {
+        window.open(href, '_blank', 'noopener,noreferrer');
+        return;
+    }
+
+    void openBrowserAsync(href, { presentationStyle: WebBrowserPresentationStyle.AUTOMATIC });
 }
 
 async function openMail(href: string) {

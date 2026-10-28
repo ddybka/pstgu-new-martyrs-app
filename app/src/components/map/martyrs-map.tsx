@@ -1,12 +1,14 @@
-import { Camera, GeoJSONSource, Layer, Map } from '@maplibre/maplibre-react-native';
-import { useMemo, useRef } from 'react';
+import { Camera, GeoJSONSource, Images, Layer, Map, type CameraRef } from '@maplibre/maplibre-react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 
+import { PIE_SIZE, encodePng, parsePieName, renderPie } from './cluster-pie';
 import {
     BOUNDS_PADDING,
     CLUSTER_COUNT_LAYER_ID,
     CLUSTER_LAYER_ID,
     CLUSTER_OPTIONS,
+    CLUSTER_PIE_LAYER_ID,
     INITIAL_VIEW,
     KIND_COLORS,
     POINT_LAYER_ID,
@@ -23,41 +25,40 @@ import {
 } from './map-config';
 import { useMapStyle } from './map-style';
 
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
-/**
- * Карта для iOS и Android. Веб-вариант — в `martyrs-map.web.tsx`.
- *
- * Кластеризацию считает сам источник (внутри supercluster), поэтому «один
- * новомученик или группа» — это не наша логика, а разные слои по фильтру
- * `has point_count`.
- */
 export default function MartyrsMap({
     points,
     bounds,
     interactive = true,
     onEventsPress,
     selected,
+    focus,
 }: MartyrsMapProps) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const mapStyle = useMapStyle(isDark);
     const sourceRef = useRef<React.ComponentRef<typeof GeoJSONSource>>(null);
+    const cameraRef = useRef<CameraRef>(null);
+    const [pies, setPies] = useState<Record<string, string>>({});
 
     const data = useMemo(() => toGeoJsonString(points), [points]);
-    // Выделение — отдельно от остальных слоёв: нажатие на точку меняет только
-    // фильтр обводки, а кластеры, точки и подписи остаются прежними объектами.
     const layers = useMemo(
         () =>
             mapStyle &&
-            buildLayers(theme.text, theme.background, mapStyle.font, KIND_COLORS[isDark ? 'dark' : 'light']),
+            buildLayers(
+                theme.text,
+                theme.background,
+                mapStyle.font,
+                KIND_COLORS[isDark ? 'dark' : 'light'],
+                isDark ? 'dark' : 'light'
+            ),
         [theme.text, theme.background, mapStyle, isDark]
     );
     const selectedFilter = useMemo(() => selectionFilter(selected ?? []), [selected]);
 
-    // Камера ставится один раз, начальным состоянием: если задавать её пропсом
-    // на каждый кадр, любое движение пальцем тут же откатывалось бы назад.
     const initialViewState = useMemo(() => {
         if (!bounds) return { center: INITIAL_VIEW.center, zoom: INITIAL_VIEW.zoom };
 
@@ -65,7 +66,6 @@ export default function MartyrsMap({
             return { center: bounds[0], zoom: SINGLE_POINT_ZOOM };
         }
 
-        // Порядок в LngLatBounds здесь плоский: [запад, юг, восток, север].
         const [[west, south], [east, north]] = bounds;
 
         return {
@@ -79,31 +79,49 @@ export default function MartyrsMap({
         };
     }, [bounds]);
 
-    // Стиль скачивается и правится (подписи, границы) — до этого карту рисовать
-    // нечем: с временным стилем она моргнула бы чужим оформлением.
+    useEffect(() => {
+        if (!focus) return;
+        const [[west, south], [east, north]] = focus.bounds;
+
+        if (isSinglePoint(focus.bounds)) {
+            cameraRef.current?.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 800 });
+        } else {
+            cameraRef.current?.fitBounds([west, south, east, north], {
+                padding: { top: BOUNDS_PADDING * 3, right: BOUNDS_PADDING, bottom: BOUNDS_PADDING * 4, left: BOUNDS_PADDING },
+                duration: 800,
+            });
+        }
+    }, [focus]);
+
+    const addPie = (name: string) => {
+        if (pies[name]) return;
+        const pie = parsePieName(name);
+        if (!pie) return;
+
+        const background = Colors[pie.scheme].background;
+        const uri = encodePng(renderPie(pie.shares, KIND_COLORS[pie.scheme], background), PIE_SIZE, PIE_SIZE);
+        setPies((prev) => (prev[name] ? prev : { ...prev, [name]: uri }));
+    };
+
     if (!mapStyle || !layers) return null;
 
     return (
         <Map
             style={styles.map}
             mapStyle={mapStyle.style}
-            // Встроенные «украшения» карты выключены: кнопка «i» и логотип
-            // MapLibre. Указание авторства при этом остаётся обязательным —
-            // подложка на данных OpenStreetMap под ODbL, — поэтому оно
-            // вынесено обычной строкой на экран карты (см. ATTRIBUTION_TEXT).
             attribution={false}
             logo={false}
             compass={false}
-            // На iOS MapLibre по умолчанию рисует не чаще 60 кадров в секунду,
-            // даже на экранах ProMotion. Выше частоты экрана всё равно не будет.
             preferredFramesPerSecond={120}
-            dragPan={interactive}
-            touchZoom={interactive}
-            doubleTapZoom={interactive}
-            doubleTapHoldZoom={interactive}
-            touchRotate={interactive}
-            touchPitch={interactive}>
-            <Camera initialViewState={initialViewState} />
+            dragPan={interactive !== false}
+            touchZoom={interactive !== false}
+            doubleTapZoom={interactive !== false}
+            doubleTapHoldZoom={interactive !== false}
+            touchRotate={interactive === true}
+            touchPitch={interactive === true}>
+            <Camera ref={cameraRef} initialViewState={initialViewState} />
+
+            <Images images={pies} onImageMissing={(event) => addPie(event.nativeEvent.image)} />
 
             <GeoJSONSource
                 id={SOURCE_ID}
@@ -118,9 +136,6 @@ export default function MartyrsMap({
 
                     const properties = feature.properties ?? {};
 
-                    // Кластер — это список событий, а не повод приблизиться:
-                    // точки внутри него могут не разойтись ни на каком зуме
-                    // (вся Москва в данных — одна точка).
                     if (properties.cluster) {
                         const leaves = await sourceRef.current
                             ?.getClusterLeaves(properties.cluster_id, properties.point_count, 0)
@@ -136,6 +151,7 @@ export default function MartyrsMap({
                     if (id !== null) onEventsPress(idsAtSamePlace(points, id));
                 }}>
                 <Layer id={CLUSTER_LAYER_ID} {...layers.clusters} />
+                <Layer id={CLUSTER_PIE_LAYER_ID} {...layers.clusterPie} />
                 <Layer id={SELECTED_LAYER_ID} {...layers.selection} filter={selectedFilter} />
                 <Layer id={POINT_LAYER_ID} {...layers.points} />
                 <Layer id={CLUSTER_COUNT_LAYER_ID} {...layers.clusterCount} />

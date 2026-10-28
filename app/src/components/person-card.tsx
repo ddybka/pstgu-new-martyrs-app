@@ -13,13 +13,15 @@ import Animated, {
 } from "react-native-reanimated";
 import { CARD_MENU_NAVIGATES, PersonCardMenu } from "./person-card-menu";
 import { PersonPhotos } from "./person-photos";
+import { PersonRankLine } from "./person-rank-line";
 import { ThemedText } from "./themed-text";
 import { HeadingFonts, Spacing } from "@/constants/theme";
 import { useCardView } from "@/context/card-view";
+import { useNameOrder } from "@/context/name-order";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
-import { Person } from "@/hooks/use-persons";
-import { capitalize, formatPersonName, formatRank } from "@/utils/person-name";
+import { holinessOf, type Person } from "@/hooks/use-persons";
+import { capitalize, formatPersonHeading, formatPersonName } from "@/utils/person-name";
 import { router } from "expo-router";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -34,12 +36,17 @@ export function PersonCard({ person }: { person: Person }) {
     const colorScheme = useColorScheme();
     const theme = useTheme();
     const { view } = useCardView();
+    const { order } = useNameOrder();
     const compact = view === 'compact';
+    // Чин святости — не в имени, а строкой над ним (см. PersonRankLine).
+    const heading = formatPersonName(person.ФИО, order) ?? person.Заголовок;
     const { width } = useWindowDimensions();
     // Высота карточки нужна только превью меню на iOS (см. person-card-menu).
     const [height, setHeight] = useState<number | undefined>(undefined);
 
-    const content = compact ? <CompactContent person={person} /> : <DetailedContent person={person} />;
+    const content = compact
+        ? <CompactContent person={person} heading={heading} />
+        : <DetailedContent person={person} heading={heading} />;
 
     // Копия карточки для поднятого вида в меню на iOS — без нажатия, рамки и
     // анимаций, на фоне страницы и во всю ширину, как в списке. Монтируется
@@ -75,7 +82,7 @@ export function PersonCard({ person }: { person: Person }) {
     return (
         <PersonCardMenu
             person={person}
-            name={formatPersonName(person.ФИО) ?? person.Заголовок ?? `Дело №${person.Номер}`}
+            name={formatPersonHeading(person.ФИО, holinessOf(person), order) ?? heading ?? `Дело №${person.Номер}`}
             preview={preview}
             previewHeight={height}>
             {(onLongPress) => (
@@ -119,30 +126,31 @@ export function PersonCard({ person }: { person: Person }) {
 }
 
 /**
- * Краткий вид: сан над именем и имя в привычном порядке — «ФОМА
- * Константинович Артемьев» (см. `formatPersonName`). Без фотографии и дат.
+ * Краткий вид: над именем — чин святости бордовым и сан («Исповедник ·
+ * епископ»), имя — в выбранном порядке (см. `formatPersonName`). Без
+ * фотографии и дат.
  */
-function CompactContent({ person }: { person: Person }) {
-    const rank = formatRank(person.сан_церк_служение);
-
+function CompactContent({ person, heading }: { person: Person; heading?: string }) {
     return (
         <>
-            {rank && <ThemedText style={styles.rank}>{rank}</ThemedText>}
+            <PersonRankLine holiness={holinessOf(person)} rank={person.сан_церк_служение} style={styles.rank} />
             <ThemedText style={[styles.title, styles.titleCompact]}>
-                {formatPersonName(person.ФИО) ?? person.Заголовок ?? '—'}
+                {heading ?? '—'}
             </ThemedText>
         </>
     );
 }
 
 /** Подробный вид: фотографии, годы жизни и тексты о рождении и кончине. */
-function DetailedContent({ person }: { person: Person }) {
+function DetailedContent({ person, heading }: { person: Person; heading?: string }) {
     return (
         <>
             <PersonPhotos photos={person.Фотографии} name={person.ФИО} />
 
+            {/* Сан здесь — в строке с годами, над именем только чин. */}
+            <PersonRankLine holiness={holinessOf(person)} style={styles.rank} />
             <ThemedText style={styles.title}>
-                {formatPersonName(person.ФИО) ?? person.Заголовок ?? '—'}
+                {heading ?? '—'}
             </ThemedText>
             {(person?.Рождение?.год || person?.Кончина?.год || person?.сан_церк_служение) && (
                 <ThemedText style={styles.subtitle}>
@@ -198,7 +206,6 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 20,
         marginBottom: Spacing.half,
-        opacity: .6,
     },
     subtitle: {
         fontSize: 16,

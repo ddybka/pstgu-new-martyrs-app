@@ -29,7 +29,7 @@ export default function HomeScreen() {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
-            <ListButton label="Настройки" onPress={() => router.push('/settings')} last />
+            <ListButton label="Настройки" onPress={() => router.push('/settings')} />
             <ThemedText
                 type="small"
                 themeColor="textSecondary"

@@ -13,6 +13,7 @@ import { Colors } from '@/constants/theme';
 import { CardViewProvider } from '@/context/card-view';
 import { ColorSchemeProvider } from '@/context/color-scheme';
 import { LoginProvider } from '@/context/login';
+import { NameOrderProvider } from '@/context/name-order';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { preloadMapPoints } from '@/hooks/use-map-points';
 import { useDetailHeaderOptions } from '@/hooks/use-stack-header';
@@ -31,7 +32,9 @@ export default function RootLayout() {
     return (
         <ColorSchemeProvider>
             <CardViewProvider>
-                <RootNavigator />
+                <NameOrderProvider>
+                    <RootNavigator />
+                </NameOrderProvider>
             </CardViewProvider>
         </ColorSchemeProvider>
     );
@@ -42,9 +45,9 @@ function RootNavigator() {
     const colors = Colors[colorScheme];
 
     const personOptions = useDetailHeaderOptions();
-    const aboutOptions = useDetailHeaderOptions('О проекте', { large: true });
-    const helpOptions = useDetailHeaderOptions('Помочь проекту', { large: true });
-    const SettingsOptions = useDetailHeaderOptions('Настройки', { large: true });
+    const aboutOptions = useDetailHeaderOptions('О проекте');
+    const helpOptions = useDetailHeaderOptions('Помочь проекту');
+    const SettingsOptions = useDetailHeaderOptions('Настройки');
 
     const [fontsLoaded, fontsError] = useFonts({ PTSerif_400Regular, PTSerif_700Bold });
 

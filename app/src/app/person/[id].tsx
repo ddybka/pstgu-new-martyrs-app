@@ -19,16 +19,19 @@ import { OfflineNotice } from "@/components/offline-notice";
 import { PersonMap } from "@/components/person-map";
 import { PersonMenu } from "@/components/person-menu";
 import { PersonPhotos } from "@/components/person-photos";
+import { PersonRankLine } from "@/components/person-rank-line";
+import { PersonSources } from "@/components/person-sources";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { HeadingFonts, MaxContentWidth, Spacing } from "@/constants/theme";
 import { usePersonMapPoints } from "@/hooks/use-map-points";
 import { normalizePersonNumber, usePerson } from "@/hooks/use-person";
-import type { PersonEvent } from "@/hooks/use-persons";
+import { holinessOf, type PersonEvent } from "@/hooks/use-persons";
 import { useScrollTitle } from "@/hooks/use-scroll-title";
 import { useTheme } from "@/hooks/use-theme";
 import { matchEvents } from "@/utils/match-events";
-import { formatPersonName } from "@/utils/person-name";
+import { formatPersonHeading, formatPersonName } from "@/utils/person-name";
+import { useNameOrder } from "@/context/name-order";
 
 import { shareLink } from "@/utils/share-link";
 import { personUrl } from "@/constants/site";
@@ -98,8 +101,12 @@ export default function PagePerson() {
     const theme = useTheme();
     const [copied, setCopied] = useState(false);
 
+    const { order } = useNameOrder();
     const number = normalizePersonNumber(id);
-    const name = formatPersonName(person?.ФИО) ?? person?.Заголовок ?? '—';
+    const holiness = holinessOf(person);
+    // На странице чин — строкой над именем; в шапке и при «Поделиться» — вместе.
+    const name = formatPersonHeading(person?.ФИО, holiness, order) ?? person?.Заголовок ?? '—';
+    const title = formatPersonName(person?.ФИО, order) ?? person?.Заголовок ?? '—';
 
     const { onScroll, setTitleBottom } = useScrollTitle(person ? name : null);
     const textTop = useRef(0);
@@ -219,13 +226,14 @@ export default function PagePerson() {
                             tryScroll();
                         }}>
                         <View style={styles.containerTextMain}>
+                            <PersonRankLine holiness={holiness} style={styles.holiness} />
                             <ThemedText
                                 style={styles.title}
                                 onLayout={(event) => {
                                     titleHeight.current = event.nativeEvent.layout.height;
                                     updateTitleBottom();
                                 }}>
-                                {name}
+                                {title}
                             </ThemedText>
                             <ThemedText style={styles.subtitle}>
                                 {years}
@@ -255,6 +263,8 @@ export default function PagePerson() {
                                 </ThemedText>
                             </View>
                         )}
+
+                        <PersonSources sources={person.Все_источники} />
                     </View>
 
                     {number !== null && (
@@ -273,7 +283,7 @@ export default function PagePerson() {
                             Подробнее
                         </ThemedText>
                         <ListButton label='Поделиться' onPress={share} />
-                        <ListButton label="Уточнить сведения" onPress={() => router.push('/help')} last />
+                        <ListButton label="Уточнить сведения" onPress={() => router.push('/help')} />
                     </View>
                 </ThemedView>
             )}
@@ -308,6 +318,12 @@ const styles = StyleSheet.create({
         lineHeight: 39,
         fontFamily: HeadingFonts.bold,
         marginBottom: Spacing.two,
+    },
+    holiness: {
+        fontSize: 20,
+        lineHeight: 25,
+        fontWeight: '400',
+        marginBottom: Spacing.one,
     },
     subtitle: {
         fontSize: 20,
@@ -354,7 +370,6 @@ const styles = StyleSheet.create({
         paddingTop: Spacing.six,
     },
     actionTitle: {
-        fontFamily: HeadingFonts.bold,
         marginBottom: Spacing.three,
         paddingHorizontal: Spacing.three,
         fontSize: 24,
