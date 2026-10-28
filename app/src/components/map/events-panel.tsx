@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { KIND_COLORS, POINT_KINDS, kindColor, type MartyrPoint } from './map-config';
@@ -145,52 +145,82 @@ export function EventsPanel({
                 />
             )}
 
+            {/* Строки тяжёлые (у человека бывают десятки событий), и
+                досоздаются они на главном потоке: пачками помельче и чаще, а
+                ушедшие с экрана отцепляются от иерархии — так прокрутка не
+                проседает ниже частоты экрана. */}
             <FlatList
                 data={shown}
                 keyExtractor={(group) => String(group.number)}
                 keyboardShouldPersistTaps="handled"
-                initialNumToRender={8}
-                windowSize={5}
+                initialNumToRender={6}
+                maxToRenderPerBatch={3}
+                updateCellsBatchingPeriod={30}
+                windowSize={7}
+                removeClippedSubviews
                 contentContainerStyle={styles.list}
-                ItemSeparatorComponent={() => (
-                    <View style={[styles.separator, { backgroundColor: theme.separator }]} />
-                )}
+                ItemSeparatorComponent={Separator}
                 ListEmptyComponent={
                     <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                         Никого не нашлось
                     </ThemedText>
                 }
-                renderItem={({ item }) => (
-                    <Pressable
-                        onPress={() => onOpenPerson(item.number, item.events.map((event) => event.id))}
-                        accessibilityRole="link"
-                        accessibilityLabel={`Открыть биографию: ${item.title}`}
-                        style={({ pressed, hovered }) => [
-                            styles.group,
-                            (pressed || hovered) && { backgroundColor: theme.backgroundElement },
-                        ]}>
-                        <PersonRankLine holiness={item.holiness} style={styles.holiness} />
-                        <ThemedText style={styles.title}>{item.title}</ThemedText>
-
-                        <View style={styles.events}>
-                            {item.events.map((event) => (
-                                <View key={event.id} style={styles.event}>
-                                    <View style={styles.meta}>
-                                        <View style={[styles.dot, { backgroundColor: kindColor(colors, event.kind) }]} />
-                                        <ThemedText type="small" themeColor="textSecondary">
-                                            {[KIND_LABELS[event.kind] ?? event.kind, event.dating].filter(Boolean).join(' · ')}
-                                        </ThemedText>
-                                    </View>
-                                    {event.text !== '' && <ThemedText style={styles.text}>{event.text}</ThemedText>}
-                                </View>
-                            ))}
-                        </View>
-                    </Pressable>
-                )}
+                renderItem={({ item }) => <GroupRow group={item} colors={colors} onOpenPerson={onOpenPerson} />}
             />
         </View>
     );
 }
+
+function Separator() {
+    const theme = useTheme();
+    return <View style={[styles.separator, { backgroundColor: theme.separator }]} />;
+}
+
+type ShownGroup = PersonEvents & { holiness: string | null };
+
+/**
+ * Строка человека. Мемоизирована: поиск по ФИО и обновления шторки не
+ * перерисовывают уже показанные строки — только новые.
+ */
+const GroupRow = memo(function GroupRow({
+    group,
+    colors,
+    onOpenPerson,
+}: {
+    group: ShownGroup;
+    colors: (typeof KIND_COLORS)[keyof typeof KIND_COLORS];
+    onOpenPerson: (number: number, eventIds: number[]) => void;
+}) {
+    const theme = useTheme();
+
+    return (
+        <Pressable
+            onPress={() => onOpenPerson(group.number, group.events.map((event) => event.id))}
+            accessibilityRole="link"
+            accessibilityLabel={`Открыть биографию: ${group.title}`}
+            style={({ pressed, hovered }) => [
+                styles.group,
+                (pressed || hovered) && { backgroundColor: theme.backgroundElement },
+            ]}>
+            <PersonRankLine holiness={group.holiness} style={styles.holiness} />
+            <ThemedText style={styles.title}>{group.title}</ThemedText>
+
+            <View style={styles.events}>
+                {group.events.map((event) => (
+                    <View key={event.id} style={styles.event}>
+                        <View style={styles.meta}>
+                            <View style={[styles.dot, { backgroundColor: kindColor(colors, event.kind) }]} />
+                            <ThemedText type="small" themeColor="textSecondary">
+                                {[KIND_LABELS[event.kind] ?? event.kind, event.dating].filter(Boolean).join(' · ')}
+                            </ThemedText>
+                        </View>
+                        {event.text !== '' && <ThemedText style={styles.text}>{event.text}</ThemedText>}
+                    </View>
+                ))}
+            </View>
+        </Pressable>
+    );
+});
 
 const styles = StyleSheet.create({
     panel: {

@@ -19,7 +19,10 @@
                 "dark": "./assets/images/icon-ios-dark.png",
                 "tinted": "./assets/images/icon-ios-tinted.png"
             },
-            "bundleIdentifier": "com.dybka.pamyat-novomuchenikov"
+            "bundleIdentifier": "com.dybka.pamyat-novomuchenikov",
+            "infoPlist": {
+                "CADisableMinimumFrameDurationOnPhone": true
+            }
         },
         "android": {
             "adaptiveIcon": {

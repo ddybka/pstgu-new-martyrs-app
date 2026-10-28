@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { PersonThumbnail } from './person-photos';
@@ -40,7 +41,8 @@ function formatYears(born: number | null, died: number | null) {
     return `${born ?? '?'}–${died ?? '?'}`;
 }
 
-export function SearchResult({ hit }: { hit: SearchHit }) {
+/** Мемоизирована: догруженная страница выдачи не перерисовывает уже показанные строки. */
+export const SearchResult = memo(function SearchResult({ hit }: { hit: SearchHit }) {
     const theme = useTheme();
     const { order } = useNameOrder();
     const name = formatPersonName(hit.name, order) ?? hit.name;
@@ -89,7 +91,7 @@ export function SearchResult({ hit }: { hit: SearchHit }) {
             )}
         </Pressable>
     );
-}
+});
 
 const THUMBNAIL_SIZE = 48;
 
