@@ -49,3 +49,5 @@ example
 
 # Копию воркера MapLibre кладёт scripts/copy-maplibre-worker.mjs на postinstall
 public/maplibre/
+
+data/person-full
