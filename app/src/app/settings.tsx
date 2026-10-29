@@ -8,6 +8,18 @@ import { ButtonRadius, Spacing } from '@/constants/theme';
 import { useColorSchemePreference, type ColorSchemePreference } from '@/context/color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
+import {
+    saveMonth,
+    loadMonth,
+    loadPerson,
+} from '@/utils/offline/offline-storage';
+import {
+    downloadDay,
+    downloadPerson,
+    downloadDayPersons,
+    downloadMonth,
+} from '@/utils/offline/offline-downloader';
+
 const THEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = [
     { value: 'system', label: 'Системная' },
     { value: 'light', label: 'Светлая' },
@@ -79,6 +91,19 @@ function DownloadSection() {
     const [selected, setSelected] = useState<number[]>([]);
     const [withPhotos, setWithPhotos] = useState(false);
 
+    const [downloading, setDownloading] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState({
+        completed: 0,
+        total: 0,
+    });
+    const [monthDownloading, setMonthDownloading] = useState(false);
+    const [monthProgress, setMonthProgress] = useState({
+        month: 0,
+        day: 0,
+        completedDays: 0,
+        totalDays: 0,
+    });
+
     const allSelected = selected.length === MONTHS.length;
 
     const toggleMonth = (index: number) =>
@@ -93,20 +118,168 @@ function DownloadSection() {
         0,
     );
 
-    const startDownload = () => {
-        const message = 'Скачивание базы появится в следующих версиях приложения.';
-        if (Platform.OS === 'web') {
-            window.alert(message);
-        } else {
-            Alert.alert('Скачивание', message);
+    const startDownload = async () => {
+        if (monthDownloading || selected.length === 0) return;
+
+        setMonthDownloading(true);
+
+        try {
+            for (const index of selected) {
+                // Индексы массива начинаются с 0,
+                // а номера месяцев — с 1.
+                const month = index + 1;
+
+                await downloadMonth(month, (progress) => {
+                    setMonthProgress({
+                        month: progress.month,
+                        day: progress.day,
+                        completedDays: progress.completedDays,
+                        totalDays: progress.totalDays,
+                    });
+                });
+            }
+
+            Alert.alert(
+                'Готово',
+                'Выбранные месяцы сохранены для офлайн-доступа.'
+            );
+        } catch (error) {
+            console.error('Ошибка скачивания месяца:', error);
+            Alert.alert('Ошибка', String(error));
+        } finally {
+            setMonthDownloading(false);
         }
     };
+
+
+
+async function testDownloadDay() {
+    try {
+        await downloadDay(10, 15);
+
+        const data = await loadMonth(10);
+
+        console.log('Скачанные данные:', data);
+
+        Alert.alert(
+            'Загрузка завершена',
+            JSON.stringify(data, null, 2)
+        );
+    } catch (error) {
+        console.error('Ошибка загрузки:', error);
+        Alert.alert('Ошибка', String(error));
+    }
+}
+
+
+async function testDownloadPerson() {
+    try {
+        // Получаем номера дел за 15 октября
+        const monthData = await loadMonth<{
+            month: number;
+            days: Record<string, number[]>;
+        }>(10);
+
+        const numbers = monthData?.days['15'] ?? [];
+
+        if (numbers.length === 0) {
+            Alert.alert(
+                'Нет данных',
+                'Сначала скачай список дел за 15 октября.'
+            );
+            return;
+        }
+
+        // Берём первое дело из сохранённого списка
+        const number = numbers[0];
+
+        await downloadPerson(number);
+
+        const person = await loadPerson<unknown>(number);
+
+        console.log('Сохранённая карточка:', person);
+
+        Alert.alert(
+            'Проверка завершена',
+            `Карточка №${number} сохранена и прочитана.`
+        );
+    } catch (error) {
+        console.error('Ошибка скачивания карточки:', error);
+        Alert.alert('Ошибка', String(error));
+    }
+}
+
+
+
+async function testDownloadAllPersons() {
+    if (downloading) return;
+
+    setDownloading(true);
+    setDownloadProgress({
+        completed: 0,
+        total: 0,
+    });
+
+    try {
+        await downloadDayPersons(
+            10,
+            15,
+            (progress) => {
+                setDownloadProgress({
+                    completed: progress.completed,
+                    total: progress.total,
+                });
+
+                console.log(
+                    `Загружено ${progress.completed} из ${progress.total}`
+                );
+            }
+        );
+
+        Alert.alert(
+            'Готово',
+            'Все карточки за 15 октября сохранены.'
+        );
+    } catch (error) {
+        console.error('Ошибка загрузки:', error);
+        Alert.alert('Ошибка', String(error));
+    } finally {
+        setDownloading(false);
+    }
+}
+
 
     return (
         <InfoSection title="Скачать базу" style={styles.section}>
             <InfoParagraph>
                 Сведения сохранятся на устройстве и будут доступны без интернета, например в поездке. Выберите месяцы, которые вам нужны.
             </InfoParagraph>
+
+
+
+            <PlateButton
+                label="Скачать данные за 15 октября"
+                onPress={testDownloadDay}
+            />
+
+            <PlateButton
+                label="Скачать одну полную карточку"
+                onPress={testDownloadPerson}
+            />
+            <PlateButton
+                label={
+                    downloading
+                        ? 'Скачивание...'
+                        : 'Скачать все карточки за 15 октября'
+                }
+                onPress={testDownloadAllPersons}
+            />
+
+            {downloading && (
+                <ThemedText>
+                    Загружено {downloadProgress.completed} из {downloadProgress.total}
+                </ThemedText>
+            )}
 
             <View style={styles.monthsHeader}>
                 <ThemedText themeColor="textSecondary" style={styles.note}>
@@ -163,6 +336,7 @@ function DownloadSection() {
                 // инверсная, во всю ширину колонки.
                 <Pressable
                     accessibilityRole="button"
+                    disabled={monthDownloading}
                     onPress={startDownload}
                     style={({ pressed }) => [
                         styles.download,
@@ -170,9 +344,26 @@ function DownloadSection() {
                         pressed && styles.pressed,
                     ]}>
                     <ThemedText themeColor="background" style={styles.downloadText}>
-                        Скачать
+                        {monthDownloading ? 'Скачивание...' : 'Скачать'}
                     </ThemedText>
                 </Pressable>
+            )}
+
+            {monthDownloading && (
+                <View style={{ paddingHorizontal: INFO_INSET }}>
+                    <ThemedText>
+                        Месяц: {MONTHS[monthProgress.month - 1]?.name ?? 'Подготовка'}
+                    </ThemedText>
+
+                    <ThemedText>
+                        Загружено дней: {monthProgress.completedDays}{' '}
+                        из {monthProgress.totalDays}
+                    </ThemedText>
+
+                    <ThemedText themeColor="textSecondary">
+                        Текущий день: {monthProgress.day}
+                    </ThemedText>
+                </View>
             )}
         </InfoSection>
     );
