@@ -1,6 +1,8 @@
 import { useApiResource } from '@/hooks/use-api-resource';
 import { apiFetch } from '@/utils/api-fetch';
 
+import { loadOfflinePersons } from '@/utils/offline/offline-reader';
+
 /** Дата памяти новомученика */
 export type PersonDate = {
     год?: number;
@@ -134,9 +136,83 @@ async function fetchAllPersons(url: string, onPartial?: (partial: PersonsRespons
     return collected(page, items, false);
 }
 
+
+/**
+ * Извлекает день и месяц из фильтра запроса.
+ */
+function getDayFromUrl(url: string): {
+    month: number;
+    day: number;
+} | null {
+    const query = url.split('?')[1];
+
+    if (!query) return null;
+
+    const params = new URLSearchParams(query);
+    const rawFilter = params.get('filter');
+
+    if (!rawFilter) return null;
+
+    try {
+        const filter = JSON.parse(rawFilter);
+
+        const month = filter['death.month'];
+        const day = filter['death.day'];
+
+        if (
+            !Number.isInteger(month) ||
+            !Number.isInteger(day) ||
+            month < 1 ||
+            month > 12 ||
+            day < 1 ||
+            day > new Date(2024, month, 0).getDate()
+        ) {
+            return null;
+        }
+
+        return { month, day };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Сначала пробует локальную базу.
+ * Если данных нет, использует API.
+ */
+async function fetchPersonsOfflineFirst(
+    url: string,
+    onPartial: (partial: PersonsResponse) => void
+): Promise<PersonsResponse> {
+    const date = getDayFromUrl(url);
+
+    if (date !== null) {
+        try {
+            const offline = await loadOfflinePersons(
+                date.month,
+                date.day
+            );
+
+            if (offline !== null) {
+                console.log(
+                    `Список за ${date.day}.${date.month} загружен из офлайн-базы`
+                );
+
+                return offline;
+            }
+        } catch (error) {
+            console.warn('Ошибка чтения офлайн-базы:', error);
+        }
+    }
+
+    // Если локальных данных нет — прежняя загрузка через API.
+    return fetchAllPersons(url, onPartial);
+}
+
+
 export function usePersons(options: UsePersonsOptions = {}) {
     const { data, ...resource } = useApiResource<PersonsResponse>(buildPersonsUrl(options), {
-        fetcher: fetchAllPersons,
+        fetcher: fetchPersonsOfflineFirst,
     });
 
     return {

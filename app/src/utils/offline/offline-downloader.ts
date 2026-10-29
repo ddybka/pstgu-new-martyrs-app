@@ -7,6 +7,9 @@ import {
     savePerson,
     loadPerson,
 } from './offline-storage';
+import { API_URL, ensureToken } from '@/utils/api-fetch';
+import { getPersonPhotos } from '@/hooks/use-image-person';
+import { downloadPhoto } from './offline-photos';
 
 type PersonItem = {
     Номер: number;
@@ -96,29 +99,65 @@ export async function downloadDay(
 
 
 /**
- * Скачивает полную карточку новомученика
- * и сохраняет её в локальный JSON-файл.
+ * Скачивает все сжатые фотографии одной биографии.
+ */
+async function downloadPersonPhotos(
+    person: { Фотографии?: unknown },
+    forceUpdate = false
+): Promise<void> {
+    const photos = getPersonPhotos(person.Фотографии);
+
+    if (photos.length === 0) return;
+
+    const token = await ensureToken();
+
+    for (const photo of photos) {
+        const url = `${API_URL}files/${photo.fileId}/content`;
+
+        await downloadPhoto(
+            photo.fileId,
+            url,
+            token,
+            forceUpdate
+        );
+    }
+}
+
+/**
+ * Скачивает полную карточку новомученика.
+ * При withPhotos = true также сохраняет фотографии.
  */
 export async function downloadPerson(
-    number: number
+    number: number,
+    forceUpdate = false,
+    withPhotos = false
 ): Promise<void> {
-    // Проверяем, есть ли карточка на устройстве
-    const savedPerson = await loadPerson<unknown>(number);
+    let person: { Фотографии?: unknown } | null = null;
 
-    if (savedPerson !== null) {
-        console.log(`Карточка ${number} уже сохранена`);
-        return;
+    // Сначала проверяем локально сохранённую карточку.
+    if (!forceUpdate) {
+        person = await loadPerson<{ Фотографии?: unknown }>(number);
     }
 
-    // Запрашиваем полную карточку с сервера
-    const person = await apiFetch<unknown>(
-        `public/dela/${number}`
-    );
+    // Если карточки нет или требуется обновление,
+    // получаем её с сервера.
+    if (person === null) {
+        person = await apiFetch<{ Фотографии?: unknown }>(
+            `public/dela/${number}`
+        );
 
-    // Сохраняем полученные данные
-    await savePerson(number, person);
+        await savePerson(number, person);
 
-    console.log(`Карточка ${number} сохранена`);
+        console.log(`Карточка ${number} сохранена`);
+    } else {
+        console.log(`Карточка ${number} уже сохранена`);
+    }
+
+    // Фотографии скачиваются только по запросу пользователя.
+    if (withPhotos) {
+        await downloadPersonPhotos(person, forceUpdate);
+        console.log(`Фотографии карточки ${number} обработаны`);
+    }
 }
 
 /**
@@ -136,7 +175,9 @@ export type DownloadProgress = {
 export async function downloadDayPersons(
     month: number,
     day: number,
-    onProgress?: (progress: DownloadProgress) => void
+    onProgress?: (progress: DownloadProgress) => void,
+    forceUpdate = false,
+    withPhotos = false
 ): Promise<void> {
     // Получаем сохранённый список номеров дел
     const monthData = await loadMonth<{
@@ -159,7 +200,7 @@ export async function downloadDayPersons(
     for (let index = 0; index < total; index++) {
         const number = numbers[index];
 
-        await downloadPerson(number);
+        await downloadPerson(number, forceUpdate, withPhotos);
 
         // Сообщаем интерфейсу о прогрессе
         onProgress?.({
@@ -185,7 +226,9 @@ export type MonthDownloadProgress = {
 
 export async function downloadMonth(
     month: number,
-    onProgress?: (progress: MonthDownloadProgress) => void
+    onProgress?: (progress: MonthDownloadProgress) => void,
+    forceUpdate = false,
+    withPhotos = false
 ): Promise<void> {
     if (!Number.isInteger(month) || month < 1 || month > 12) {
         throw new Error('Некорректный номер месяца');
@@ -212,16 +255,24 @@ export async function downloadMonth(
         totalPersons += numbers.length;
 
         // Скачиваем полные карточки.
-        await downloadDayPersons(month, day, (progress) => {
-            onProgress?.({
-                month,
-                day,
-                totalDays,
-                completedDays: day - 1,
-                completedPersons: completedPersons + progress.completed,
-                totalPersons,
-            });
-        });
+
+        await downloadDayPersons(
+            month,
+            day,
+            (progress) => {
+                onProgress?.({
+                    month,
+                    day,
+                    totalDays,
+                    completedDays: day - 1,
+                    completedPersons: completedPersons + progress.completed,
+                    totalPersons,
+                });
+            },
+            forceUpdate,
+            withPhotos
+        );
+
 
         completedPersons += numbers.length;
 

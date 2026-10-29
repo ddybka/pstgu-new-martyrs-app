@@ -4,6 +4,8 @@ import type { ImageSource } from 'expo-image';
 
 import { API_URL, ensureToken, peekToken } from '@/utils/api-fetch';
 
+import { getOfflinePhotoUri } from '@/utils/offline/offline-photos';
+
 export type PersonPhoto = {
     имя_файла?: string;
     полное_фото_file_id?: string;
@@ -54,6 +56,21 @@ export function usePersonPhotos(photos: unknown, options: UsePersonPhotosOptions
         [signature]
     );
     const hasPhotos = items.length > 0;
+    const [localPhotos, setLocalPhotos] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        const found: Record<string, string> = {};
+
+        for (const item of items) {
+            const uri = getOfflinePhotoUri(item.fileId);
+
+            if (uri) {
+                found[item.fileId] = uri;
+            }
+        }
+
+        setLocalPhotos(found);
+    }, [signature]);
 
     // Токен почти всегда уже в памяти: его получают при запуске (см.
     // `LoginProvider`). Тогда адреса снимков готовы в первой же отрисовке, и
@@ -61,7 +78,10 @@ export function usePersonPhotos(photos: unknown, options: UsePersonPhotosOptions
     // на сотню карточек это и были лишние кадры при прокрутке.
     const [token, setToken] = useState<string | null>(peekToken);
     const [error, setError] = useState<Error | null>(null);
-    const needsToken = hasPhotos && token === null;
+    const needsToken =
+    hasPhotos &&
+    token === null &&
+    items.some((item) => !localPhotos[item.fileId]);
 
     useEffect(() => {
         if (!needsToken) return;
@@ -85,17 +105,28 @@ export function usePersonPhotos(photos: unknown, options: UsePersonPhotosOptions
 
     const loading = needsToken && error === null;
 
-    const result: PersonPhotoItem[] = useMemo(
-        () =>
-            items.map(({ fileId, caption }) => ({
+const result: PersonPhotoItem[] = useMemo(
+    () =>
+        items.map(({ fileId, caption }) => {
+            const localUri = localPhotos[fileId];
+
+            return {
                 fileId,
                 caption,
-                source: token
-                    ? { uri: `${API_URL}files/${fileId}/content`, headers: { Authorization: `Bearer ${token}` } }
-                    : null,
-            })),
-        [items, token]
-    );
+                source: localUri
+                    ? { uri: localUri }
+                    : token
+                        ? {
+                            uri: `${API_URL}files/${fileId}/content`,
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
+                        }
+                        : null,
+            };
+        }),
+    [items, token, localPhotos]
+);
 
     return { photos: result, loading, error };
 }

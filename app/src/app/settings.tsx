@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { INFO_INSET, InfoPage, InfoParagraph, InfoSection } from '@/components/info-page';
@@ -8,17 +8,8 @@ import { ButtonRadius, Spacing } from '@/constants/theme';
 import { useColorSchemePreference, type ColorSchemePreference } from '@/context/color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
-import {
-    saveMonth,
-    loadMonth,
-    loadPerson,
-} from '@/utils/offline/offline-storage';
-import {
-    downloadDay,
-    downloadPerson,
-    downloadDayPersons,
-    downloadMonth,
-} from '@/utils/offline/offline-downloader';
+import { downloadMonth } from '@/utils/offline/offline-downloader';
+import { verifyMonth, verifyMonthPhotos } from '@/utils/offline/offline-verifier';
 
 const THEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = [
     { value: 'system', label: 'Системная' },
@@ -89,13 +80,9 @@ function ThemeSection() {
 function DownloadSection() {
     const theme = useTheme();
     const [selected, setSelected] = useState<number[]>([]);
+    const [downloadedMonths, setDownloadedMonths] = useState<number[]>([]);
     const [withPhotos, setWithPhotos] = useState(false);
 
-    const [downloading, setDownloading] = useState(false);
-    const [downloadProgress, setDownloadProgress] = useState({
-        completed: 0,
-        total: 0,
-    });
     const [monthDownloading, setMonthDownloading] = useState(false);
     const [monthProgress, setMonthProgress] = useState({
         month: 0,
@@ -118,135 +105,116 @@ function DownloadSection() {
         0,
     );
 
-    const startDownload = async () => {
-        if (monthDownloading || selected.length === 0) return;
+    useEffect(() => {
+    let active = true;
 
-        setMonthDownloading(true);
+    async function checkDownloadedMonths() {
+        const downloaded: number[] = [];
 
-        try {
-            for (const index of selected) {
-                // Индексы массива начинаются с 0,
-                // а номера месяцев — с 1.
-                const month = index + 1;
+        for (let month = 1; month <= 12; month++) {
+            try {
+                const result = await verifyMonth(month);
 
-                await downloadMonth(month, (progress) => {
+                if (result.complete) {
+                    downloaded.push(month);
+                }
+            } catch (error) {
+                console.warn(`Ошибка проверки месяца ${month}:`, error);
+            }
+        }
+
+        if (active) {
+            setDownloadedMonths(downloaded);
+        }
+    }
+
+    void checkDownloadedMonths();
+
+    return () => {
+        active = false;
+    };
+}, []);
+
+const startDownload = async () => {
+    if (monthDownloading || selected.length === 0) return;
+
+    setMonthDownloading(true);
+
+    try {
+        for (const index of selected) {
+            const month = index + 1;
+
+            // Скачиваем списки и карточки за месяц.
+            await downloadMonth(
+                month,
+                (progress) => {
                     setMonthProgress({
                         month: progress.month,
                         day: progress.day,
                         completedDays: progress.completedDays,
                         totalDays: progress.totalDays,
                     });
-                });
+                },
+                downloadedMonths.includes(month),
+                withPhotos
+            );
+
+            // Проверяем сохранённые файлы.
+            const result = await verifyMonth(month);
+
+            if (!result.complete) {
+                throw new Error(
+                    `Не удалось полностью сохранить ${MONTHS[index].name}.\n` +
+                    `Дней: ${result.savedDays} из ${result.totalDays}.\n` +
+                    `Карточек: ${result.savedPersons} из ${result.totalPersons}.`
+                );
             }
 
-            Alert.alert(
-                'Готово',
-                'Выбранные месяцы сохранены для офлайн-доступа.'
+
+            if (withPhotos) {
+                const photosResult = await verifyMonthPhotos(month);
+
+                console.log(
+                    `${MONTHS[index].name}: фотографии ` +
+                    `${photosResult.savedPhotos}/${photosResult.totalPhotos}`
+                );
+
+                if (!photosResult.complete) {
+                    throw new Error(
+                        `Не все фотографии месяца ${MONTHS[index].name} скачаны.\n` +
+                        `Фотографий: ${photosResult.savedPhotos} ` +
+                        `из ${photosResult.totalPhotos}.`
+                    );
+                }
+            }
+
+
+            setDownloadedMonths((current) =>
+                current.includes(month) ? current : [...current, month]
             );
-        } catch (error) {
-            console.error('Ошибка скачивания месяца:', error);
-            Alert.alert('Ошибка', String(error));
-        } finally {
-            setMonthDownloading(false);
+
+            console.log(
+                `${MONTHS[index].name}: проверка пройдена. ` +
+                `Дней: ${result.savedDays}/${result.totalDays}, ` +
+                `карточек: ${result.savedPersons}/${result.totalPersons}`
+            );
         }
-    };
-
-
-
-async function testDownloadDay() {
-    try {
-        await downloadDay(10, 15);
-
-        const data = await loadMonth(10);
-
-        console.log('Скачанные данные:', data);
 
         Alert.alert(
             'Загрузка завершена',
-            JSON.stringify(data, null, 2)
+            'Все выбранные месяцы скачаны и проверены.'
         );
     } catch (error) {
-        console.error('Ошибка загрузки:', error);
-        Alert.alert('Ошибка', String(error));
-    }
-}
-
-
-async function testDownloadPerson() {
-    try {
-        // Получаем номера дел за 15 октября
-        const monthData = await loadMonth<{
-            month: number;
-            days: Record<string, number[]>;
-        }>(10);
-
-        const numbers = monthData?.days['15'] ?? [];
-
-        if (numbers.length === 0) {
-            Alert.alert(
-                'Нет данных',
-                'Сначала скачай список дел за 15 октября.'
-            );
-            return;
-        }
-
-        // Берём первое дело из сохранённого списка
-        const number = numbers[0];
-
-        await downloadPerson(number);
-
-        const person = await loadPerson<unknown>(number);
-
-        console.log('Сохранённая карточка:', person);
+        console.error('Ошибка скачивания или проверки:', error);
 
         Alert.alert(
-            'Проверка завершена',
-            `Карточка №${number} сохранена и прочитана.`
+            'Ошибка загрузки',
+            error instanceof Error ? error.message : String(error)
         );
-    } catch (error) {
-        console.error('Ошибка скачивания карточки:', error);
-        Alert.alert('Ошибка', String(error));
-    }
-}
-
-
-
-async function testDownloadAllPersons() {
-    if (downloading) return;
-
-    setDownloading(true);
-    setDownloadProgress({
-        completed: 0,
-        total: 0,
-    });
-
-    try {
-        await downloadDayPersons(
-            10,
-            15,
-            (progress) => {
-                setDownloadProgress({
-                    completed: progress.completed,
-                    total: progress.total,
-                });
-
-                console.log(
-                    `Загружено ${progress.completed} из ${progress.total}`
-                );
-            }
-        );
-
-        Alert.alert(
-            'Готово',
-            'Все карточки за 15 октября сохранены.'
-        );
-    } catch (error) {
-        console.error('Ошибка загрузки:', error);
-        Alert.alert('Ошибка', String(error));
     } finally {
-        setDownloading(false);
+        setMonthDownloading(false);
     }
-}
+};
 
 
     return (
@@ -254,32 +222,6 @@ async function testDownloadAllPersons() {
             <InfoParagraph>
                 Сведения сохранятся на устройстве и будут доступны без интернета, например в поездке. Выберите месяцы, которые вам нужны.
             </InfoParagraph>
-
-
-
-            <PlateButton
-                label="Скачать данные за 15 октября"
-                onPress={testDownloadDay}
-            />
-
-            <PlateButton
-                label="Скачать одну полную карточку"
-                onPress={testDownloadPerson}
-            />
-            <PlateButton
-                label={
-                    downloading
-                        ? 'Скачивание...'
-                        : 'Скачать все карточки за 15 октября'
-                }
-                onPress={testDownloadAllPersons}
-            />
-
-            {downloading && (
-                <ThemedText>
-                    Загружено {downloadProgress.completed} из {downloadProgress.total}
-                </ThemedText>
-            )}
 
             <View style={styles.monthsHeader}>
                 <ThemedText themeColor="textSecondary" style={styles.note}>
@@ -291,6 +233,7 @@ async function testDownloadAllPersons() {
             <View style={styles.months}>
                 {MONTHS.map((month, index) => {
                     const active = selected.includes(index);
+                    const downloaded = downloadedMonths.includes(index + 1);
                     return (
                         <Pressable
                             key={month.name}
@@ -308,6 +251,13 @@ async function testDownloadAllPersons() {
                                 themeColor={active ? 'background' : 'textSecondary'}
                                 style={styles.monthText}>
                                 {month.name}
+                                {downloaded && (
+                                    <ThemedText
+                                        themeColor={active ? 'background' : 'textSecondary'}
+                                        style={styles.downloadedLabel}>
+                                        ✓
+                                    </ThemedText>
+                                )}
                             </ThemedText>
                         </Pressable>
                     );
@@ -473,5 +423,9 @@ const styles = StyleSheet.create({
         fontSize: 17,
         lineHeight: 22,
         fontWeight: '600',
+    },
+    downloadedLabel: {
+    fontSize: 12,
+    marginTop: 3,
     },
 });
