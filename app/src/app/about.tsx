@@ -14,9 +14,7 @@ export function generateMetadata(): Metadata {
     const title = 'О проекте - Память новомучеников';
     const description = 'Узнайте о новомучениках и исповедниках Церкви Русской, биографические сведения и карте мест, связанных с их жизнью.';
 
-    // Какой на самом деле адрес веб-версии?
-    // const url = 'https://map.dybka.ru/about';
-    const url = `${SITE_URL}/`;
+    const url = `${SITE_URL}/about`;
 
     return {
         title,

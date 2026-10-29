@@ -21,10 +21,11 @@ export default function Root({ children }: { children: ReactNode }) {
 
                 <meta name='theme-color' content='#1C1C1C' />
 
-                {/* <link
+                {/*
+                <link
                     rel="icon"
                     type="image/png"
-                    href="/favicon.png"
+                    href="assets/icon.png"
                 /> */}
 
                 {headNodes}

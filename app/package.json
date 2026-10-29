@@ -45,7 +45,9 @@
         "ios": "expo run:ios",
         "web": "expo start --web",
         "lint": "expo lint",
-        "postinstall": "node ./scripts/copy-maplibre-worker.mjs"
+        "postinstall": "node ./scripts/copy-maplibre-worker.mjs",
+        "sitemap": "node ./scripts/build-sitemap.mjs",
+        "build": "npm run build:sitemap && expo export --platform web"
     },
     "private": true
 }
