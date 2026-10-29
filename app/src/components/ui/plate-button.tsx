@@ -1,6 +1,6 @@
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
+import { Icon, type IconProps } from '@/components/ui/icon';
 import { ThemedText } from '@/components/themed-text';
 import { ButtonRadius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -23,7 +23,7 @@ export function PlateButton({
     iconStyle,
 }: {
     label: string;
-    icon?: SymbolViewProps['name'];
+    icon?: IconProps['name'];
     onPress: () => void;
     accessibilityLabel?: string;
     /** Фон плашки. На сером фоне — цвет страницы, иначе плашка пропадёт. */
@@ -47,7 +47,7 @@ export function PlateButton({
             ]}>
             <ThemedText type="small">{label}</ThemedText>
             {icon && (
-                <SymbolView
+                <Icon
                     name={icon}
                     size={ICON_SIZE}
                     style={[styles.icon, iconStyle]}

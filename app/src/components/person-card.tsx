@@ -1,16 +1,10 @@
 import { useState } from "react";
 import {
-    Pressable,
     StyleSheet,
     View,
     useWindowDimensions,
 } from "react-native";
-import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
-} from "react-native-reanimated";
+import { CardPressable } from "./card-pressable";
 import { CARD_MENU_NAVIGATES, PersonCardMenu } from "./person-card-menu";
 import { PersonPhotos } from "./person-photos";
 import { PersonRankLine } from "./person-rank-line";
@@ -24,15 +18,7 @@ import { holinessOf, type Person } from "@/hooks/use-persons";
 import { capitalize, formatPersonHeading, formatPersonName } from "@/utils/person-name";
 import { router } from "expo-router";
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const PRESS_IN = { duration: 60, easing: Easing.out(Easing.quad) };
-const PRESS_OUT = { duration: 120, easing: Easing.out(Easing.quad) };
-
 export function PersonCard({ person }: { person: Person }) {
-    // Одно значение на всё нажатие: масштаб, прозрачность и фон считаются из
-    // него на UI-потоке, без перерисовки карточки на каждое касание.
-    const press = useSharedValue(0);
     const colorScheme = useColorScheme();
     const theme = useTheme();
     const { view } = useCardView();
@@ -64,18 +50,6 @@ export function PersonCard({ person }: { person: Person }) {
     );
 
     const pressedColor = colorScheme === "dark" ? "#1C1C1E" : "#F2F2F7";
-    const background = theme.background;
-
-    const contentStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: 1 - 0.01 * press.value }],
-        opacity: 1 - 0.25 * press.value,
-    }));
-
-    // Фон меняется скачком, как и раньше: плавное затухание фона под
-    // пальцем читается как задержка.
-    const backgroundStyle = useAnimatedStyle(() => ({
-        backgroundColor: press.value > 0.5 ? pressedColor : background,
-    }));
 
     // Долгое нажатие — меню «Поделиться» и «Уточнить сведения»
     // (см. person-card-menu).
@@ -86,7 +60,7 @@ export function PersonCard({ person }: { person: Person }) {
             preview={preview}
             previewHeight={height}>
             {(onLongPress) => (
-                <AnimatedPressable
+                <CardPressable
                     // На iOS карточка — это `Link`, и переход делает он.
                     onPress={
                         CARD_MENU_NAVIGATES
@@ -99,27 +73,15 @@ export function PersonCard({ person }: { person: Person }) {
                             ? ({ nativeEvent }) => setHeight(Math.round(nativeEvent.layout.height))
                             : undefined
                     }
-                    onPressIn={() => {
-                        press.value = withTiming(1, PRESS_IN);
-                    }}
-                    onPressOut={() => {
-                        press.value = withTiming(0, PRESS_OUT);
-                    }}
-                    style={styles.card}
-                >
-                    <Animated.View
-                        style={[
-                            styles.container,
-                            compact && styles.containerCompact,
-                            { borderColor: theme.separator },
-                            backgroundStyle,
-                        ]}
-                    >
-                        <Animated.View style={[styles.content, contentStyle]}>
-                            {content}
-                        </Animated.View>
-                    </Animated.View>
-                </AnimatedPressable>
+                    containerStyle={[
+                        styles.container,
+                        compact && styles.containerCompact,
+                        { borderColor: theme.separator },
+                    ]}
+                    background={theme.background}
+                    pressedBackground={pressedColor}>
+                    {content}
+                </CardPressable>
             )}
         </PersonCardMenu>
     );
@@ -187,11 +149,6 @@ const styles = StyleSheet.create({
     preview: {
         flex: 0,
         borderTopWidth: 0,
-    },
-    content: {
-        width: '100%',
-    },
-    card: {
     },
     title: {
         fontSize: 19,

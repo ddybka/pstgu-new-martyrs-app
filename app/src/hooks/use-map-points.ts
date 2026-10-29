@@ -258,11 +258,14 @@ export function preloadMapPoints() {
     void loadMapPoints();
 }
 
-/** Все точки — для вкладки карты. Пока точки не прочитаны — пустой список. */
-export function useMapPoints(): MartyrPoint[] {
+/**
+ * Все точки — для вкладки карты. Пока точки не прочитаны — пустой список.
+ * `enabled: false` — не загружать их отсюда (в вебе это четыреста килобайт).
+ */
+export function useMapPoints(enabled = true): MartyrPoint[] {
     useEffect(() => {
-        void loadMapPoints();
-    }, []);
+        if (enabled) void loadMapPoints();
+    }, [enabled]);
 
     return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
@@ -290,8 +293,8 @@ function pointsOf(all: MartyrPoint[], number: number) {
 }
 
 /** Точки одного дела, для карты на странице новомученика. */
-export function usePersonMapPoints(number: number | null): MartyrPoint[] {
-    const all = useMapPoints();
+export function usePersonMapPoints(number: number | null, enabled = true): MartyrPoint[] {
+    const all = useMapPoints(enabled && number !== null);
 
     return useMemo(() => (number === null ? NO_POINTS : pointsOf(all, number)), [all, number]);
 }

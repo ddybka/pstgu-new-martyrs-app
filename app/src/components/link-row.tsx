@@ -1,10 +1,10 @@
-import { SymbolView } from 'expo-symbols';
-import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
 import { Alert, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { Icon } from '@/components/ui/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { openLink } from '@/utils/open-link';
 
 /**
  * Строка-ссылка во всю ширину страницы, с линиями сверху и снизу.
@@ -31,7 +31,7 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
             ]}>
             <View style={styles.link}>
                 {href && isMail && (
-                    <SymbolView
+                    <Icon
                         name={{ ios: 'envelope', android: 'mail', web: 'mail' }}
                         size={18}
                         tintColor={theme.text}
@@ -40,7 +40,7 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
                 )}
                 <ThemedText style={styles.linkText}>{label}</ThemedText>
                 {href && !isMail && (
-                    <SymbolView
+                    <Icon
                         name={{ ios: 'arrow.up.right.square', android: 'open_in_new', web: 'open_in_new' }}
                         size={18}
                         tintColor={theme.text}
@@ -50,21 +50,6 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
             </View>
         </Pressable>
     );
-}
-
-/**
- * На телефоне — встроенный браузер поверх приложения, чтобы из него было
- * легко вернуться. В вебе — просто новая вкладка: `openBrowserAsync` там
- * открывает отдельное маленькое окно посреди экрана (window.open с
- * размерами), а на компьютере этого никто не ждёт.
- */
-function openLink(href: string) {
-    if (Platform.OS === 'web') {
-        window.open(href, '_blank', 'noopener,noreferrer');
-        return;
-    }
-
-    void openBrowserAsync(href, { presentationStyle: WebBrowserPresentationStyle.AUTOMATIC });
 }
 
 async function openMail(href: string) {

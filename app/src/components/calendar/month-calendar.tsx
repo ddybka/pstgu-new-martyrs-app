@@ -18,16 +18,10 @@ import { Dropdown } from '@/components/ui/dropdown';
 import { RETURN_BUTTON_HEIGHT, ReturnButton } from './return-button';
 import { HeadingFonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { MONTHS, MONTHS_FOR_DATE } from '@/constants/months';
 
-export const MONTHS = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-] as const;
+export { MONTHS, MONTHS_FOR_DATE };
 
-export const MONTHS_FOR_DATE = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-] as const;
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 

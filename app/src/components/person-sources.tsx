@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { HighlightedText } from '@/components/highlighted-text';
 import { ThemedText } from '@/components/themed-text';
 import { Chevron } from '@/components/ui/chevron';
 import { Expandable } from '@/components/ui/expandable';
@@ -8,6 +9,7 @@ import { HeadingFonts, Spacing } from '@/constants/theme';
 import type { PersonSource } from '@/hooks/use-persons';
 import { useTheme } from '@/hooks/use-theme';
 import { capitalize } from '@/utils/person-name';
+import { findMatches } from '@/utils/text-search';
 
 /** Подписи групп по `тип` источника; незнакомый тип подписывается как есть. */
 const TYPE_LABELS: Record<string, string> = {
@@ -23,7 +25,7 @@ type SourceGroup = { type: string; label: string; items: { text: string; number:
  * Источники по группам, в порядке базы: архивы, публикации, сайты. Повторы
  * убираются — в базе одна и та же строка бывает записана дважды.
  */
-function groupSources(sources: readonly PersonSource[]): SourceGroup[] {
+function groupSources(sources: readonly PersonSource[] = []): SourceGroup[] {
     const groups = new Map<string, SourceGroup>();
     const seen = new Set<string>();
 
@@ -48,15 +50,47 @@ function groupSources(sources: readonly PersonSource[]): SourceGroup[] {
     return [...groups.values()];
 }
 
+/** Тексты источников в том порядке, в каком они на экране, — для поиска по странице. */
+export function sourceTexts(sources?: readonly PersonSource[]): string[] {
+    return groupSources(sources).flatMap((group) => group.items.map((item) => item.text));
+}
+
 /**
  * Список источников в конце биографии. Он есть у каждого дела, и без него
  * биография для историка — пересказ без ссылок. Свёрнут по умолчанию: в
  * нём бывает по двадцать строк, и читать биографию он не мешает.
  */
-export function PersonSources({ sources }: { sources?: readonly PersonSource[] }) {
+export function PersonSources({
+    sources,
+    needle = '',
+    first = 0,
+    active = null,
+}: {
+    sources?: readonly PersonSource[];
+    /** Поиск по странице: запрос, номер первого совпадения здесь и текущее. */
+    needle?: string;
+    first?: number;
+    active?: number | null;
+}) {
     const theme = useTheme();
-    const [open, setOpen] = useState(false);
-    const groups = useMemo(() => groupSources(sources ?? []), [sources]);
+    const [opened, setOpen] = useState(false);
+    const groups = useMemo(() => groupSources(sources), [sources]);
+
+    // Сквозные номера первого совпадения в каждом источнике.
+    const firsts = useMemo(() => {
+        const result = new Map<string, number>();
+        let offset = first;
+        for (const group of groups) {
+            for (const item of group.items) {
+                result.set(item.text, offset);
+                offset += needle ? findMatches(item.text, needle).length : 0;
+            }
+        }
+        return { result, total: offset - first };
+    }, [groups, needle, first]);
+
+    // Нашлось в источниках — список раскрыт, иначе совпадений не видно.
+    const open = opened || firsts.total > 0;
 
     const count = groups.reduce((sum, group) => sum + group.items.length, 0);
     if (count === 0) return null;
@@ -64,7 +98,7 @@ export function PersonSources({ sources }: { sources?: readonly PersonSource[] }
     return (
         <View style={[styles.container, { borderColor: theme.separator }]}>
             <Pressable
-                onPress={() => setOpen((value) => !value)}
+                onPress={() => setOpen(!open)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: open }}
                 accessibilityLabel={`Источники, ${count}`}
@@ -92,9 +126,15 @@ export function PersonSources({ sources }: { sources?: readonly PersonSource[] }
                                     <ThemedText type="small" themeColor="textSecondary" style={styles.number}>
                                         {number}.
                                     </ThemedText>
-                                    <ThemedText type="small" selectable style={styles.text}>
+                                    <HighlightedText
+                                        type="small"
+                                        selectable
+                                        style={styles.text}
+                                        needle={needle}
+                                        first={firsts.result.get(text)}
+                                        active={active}>
                                         {text}
-                                    </ThemedText>
+                                    </HighlightedText>
                                 </View>
                             ))}
                         </View>

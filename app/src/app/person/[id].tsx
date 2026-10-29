@@ -1,36 +1,35 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from "react-native";
-import Animated, {
-    Easing,
-    useAnimatedRef,
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
-    withSequence,
-    withTiming,
-} from "react-native-reanimated";
+import { Platform, Pressable, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BlockError } from "@/components/block-error";
 import { BlockLoading } from "@/components/block-loading";
+import { FlashOverlay } from "@/components/flash-overlay";
+import { HighlightedText } from "@/components/highlighted-text";
 import { ListButton } from "@/components/list-button";
 import { OfflineNotice } from "@/components/offline-notice";
+import { PageScrollView, usePageScrollRef } from "@/components/page-scroll-view";
 import { PersonMap } from "@/components/person-map";
 import { PersonMenu } from "@/components/person-menu";
 import { PersonPhotos } from "@/components/person-photos";
 import { PersonRankLine } from "@/components/person-rank-line";
-import { PersonSources } from "@/components/person-sources";
+import { PersonSources, sourceTexts } from "@/components/person-sources";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { HeadingFonts, MaxContentWidth, Spacing } from "@/constants/theme";
+import { Chevron } from "@/components/ui/chevron";
+import { HeadingFonts, MaxContentWidth, Spacing, SurfaceShadow } from "@/constants/theme";
 import { usePersonMapPoints } from "@/hooks/use-map-points";
+import { useIsClient } from "@/hooks/use-is-client";
 import { normalizePersonNumber, usePerson } from "@/hooks/use-person";
 import { holinessOf, type PersonEvent } from "@/hooks/use-persons";
 import { useScrollTitle } from "@/hooks/use-scroll-title";
 import { useTheme } from "@/hooks/use-theme";
 import { matchEvents } from "@/utils/match-events";
 import { formatPersonHeading, formatPersonName } from "@/utils/person-name";
+import { scrollBlockToTop } from "@/utils/scroll-block";
+import { findMatches, pageNeedle } from "@/utils/text-search";
 import { useNameOrder } from "@/context/name-order";
 
 import { shareLink } from "@/utils/share-link";
@@ -43,53 +42,69 @@ function formatEventDate(date: string | null | undefined) {
     return date;
 }
 
-const FLASH_DELAY_MS = 300;
-const FLASH_IN = { duration: 250 };
-const FLASH_HOLD_MS = 2200;
-const FLASH_OUT = { duration: 600, easing: Easing.out(Easing.quad) };
+/** Тексты события в том порядке, в каком они на экране: дата, текст, места. */
+function eventTexts(event: PersonEvent): string[] {
+    const places = (event.Места ?? [])
+        .map((place) => place.адрес)
+        .filter((address): address is string => Boolean(address));
+
+    return [formatEventDate(event?.датировка), event.текст ?? '', places.join(' · ')];
+}
+
+/** Сквозные номера первого совпадения в каждом из текстов, начиная с `first`. */
+function matchOffsets(texts: readonly string[], needle: string, first: number) {
+    const offsets: number[] = [];
+    let offset = first;
+    for (const text of texts) {
+        offsets.push(offset);
+        offset += needle ? findMatches(text, needle).length : 0;
+    }
+    return offsets;
+}
 
 function EventRow({
     event,
     flashKey,
     onLayout,
+    viewRef,
+    needle,
+    first,
+    active,
 }: {
     event: PersonEvent;
     flashKey: number | null;
     onLayout: (event: LayoutChangeEvent) => void;
+    /** Узел строки — по нему в вебе меряется, куда прокручивать. */
+    viewRef: (node: unknown) => void;
+    needle: string;
+    first: number;
+    active: number | null;
 }) {
     const theme = useTheme();
-    const flash = useSharedValue(0);
-
-    useEffect(() => {
-        if (flashKey === null) return;
-        flash.value = 0;
-        flash.value = withSequence(
-            withDelay(FLASH_DELAY_MS, withTiming(1, FLASH_IN)),
-            withDelay(FLASH_HOLD_MS, withTiming(0, FLASH_OUT))
-        );
-    }, [flashKey, flash]);
-
-    const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
-    const places = (event.Места ?? [])
-        .map((place) => place.адрес)
-        .filter((address): address is string => Boolean(address));
+    const [date, text, places] = eventTexts(event);
+    const [dateFirst, textFirst, placesFirst] = matchOffsets([date, text, places], needle, first);
 
     return (
-        <View style={[styles.event, styles.eventRow]} onLayout={onLayout}>
-            <Animated.View
-                pointerEvents="none"
-                style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundElement }, flashStyle]}
-            />
-            <ThemedText type="smallBold" style={styles.eventDate}>
-                {formatEventDate(event?.датировка)}
-            </ThemedText>
-            {event.текст && <ThemedText type="small" style={styles.eventText}>
-                {event.текст}
-            </ThemedText>}
-            {places.length > 0 && (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.eventPlace}>
-                    {places.join(' · ')}
-                </ThemedText>
+        <View ref={viewRef} style={[styles.event, styles.eventRow]} onLayout={onLayout}>
+            <FlashOverlay flashKey={flashKey} color={theme.backgroundElement} />
+            <HighlightedText type="smallBold" style={styles.eventDate} needle={needle} first={dateFirst} active={active}>
+                {date}
+            </HighlightedText>
+            {text !== '' && (
+                <HighlightedText type="small" style={styles.eventText} needle={needle} first={textFirst} active={active}>
+                    {text}
+                </HighlightedText>
+            )}
+            {places !== '' && (
+                <HighlightedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.eventPlace}
+                    needle={needle}
+                    first={placesFirst}
+                    active={active}>
+                    {places}
+                </HighlightedText>
             )}
         </View>
     );
@@ -104,17 +119,21 @@ export default function PagePerson() {
     const { order } = useNameOrder();
     const number = normalizePersonNumber(id);
     const holiness = holinessOf(person);
-    // На странице чин — строкой над именем; в шапке и при «Поделиться» — вместе.
+    // На странице чин — строкой над именем, в шапке — только ФИО, а при
+    // «Поделиться» — вместе с чином.
     const name = formatPersonHeading(person?.ФИО, holiness, order) ?? person?.Заголовок ?? '—';
     const title = formatPersonName(person?.ФИО, order) ?? person?.Заголовок ?? '—';
 
-    const { onScroll, setTitleBottom } = useScrollTitle(person ? name : null);
+    const { onScroll, setTitleBottom } = useScrollTitle(person ? title : null);
     const textTop = useRef(0);
     const titleHeight = useRef(0);
     const updateTitleBottom = () => setTitleBottom(textTop.current + titleHeight.current);
 
     const personEvents = useMemo(() => person?.События ?? [], [person]);
-    const mapPoints = usePersonMapPoints(number);
+    // Точки нужны странице, только чтобы подсветить события, с которыми
+    // пришли с общей карты (`events`); иначе их грузит блок карты внизу,
+    // когда до него докрутят.
+    const mapPoints = usePersonMapPoints(number, Boolean(eventsParam));
 
     const paramHighlight = useMemo(() => {
         const ids = new Set((eventsParam ?? '').split(',').filter(Boolean).map(Number));
@@ -126,15 +145,32 @@ export default function PagePerson() {
     const flashEvents = (indexes: number[]) =>
         setFlash((current) => ({ indexes, key: (current?.key ?? 0) + 1 }));
 
-    const scrollRef = useAnimatedRef<Animated.ScrollView>();
+    const scrollRef = usePageScrollRef();
     const headerHeight = useHeaderHeight();
-    const eventTops = useRef<Record<number, number>>({});
-    const pendingScroll = useRef<number | null>(null);
+    // Верх каждого блока текста (событие — `e{номер}`, «Дополнительно» —
+    // `extra`, источники — `sources`) относительно колонки текста.
+    const blockTops = useRef<Record<string, number>>({});
+    // Узлы тех же блоков — для веба (см. scroll-block.web).
+    const blockNodes = useRef<Record<string, unknown>>({});
+    const stopFollow = useRef<(() => void) | null>(null);
+    const pendingScroll = useRef<string | null>(null);
 
     const tryScroll = () => {
-        const index = pendingScroll.current;
-        if (index === null) return;
-        const top = eventTops.current[index];
+        const key = pendingScroll.current;
+        if (key === null) return;
+
+        if (Platform.OS === 'web') {
+            const node = blockNodes.current[key];
+            if (!node) return;
+            stopFollow.current?.();
+            stopFollow.current = scrollBlockToTop(node, Spacing.three);
+            if (stopFollow.current) {
+                pendingScroll.current = null;
+                return;
+            }
+        }
+
+        const top = blockTops.current[key];
         if (top === undefined) return;
 
         pendingScroll.current = null;
@@ -144,10 +180,88 @@ export default function PagePerson() {
         scrollRef.current?.scrollTo({ y: textTop.current + top - covered - Spacing.three, animated: true });
     };
 
-    const scrollToEvent = (index: number) => {
-        pendingScroll.current = index;
+    const scrollToBlock = (key: string) => {
+        pendingScroll.current = key;
         tryScroll();
     };
+    const scrollToEvent = (index: number) => scrollToBlock(`e${index}`);
+    const onBlockLayout = (key: string, { nativeEvent }: LayoutChangeEvent) => {
+        blockTops.current[key] = nativeEvent.layout.y;
+        tryScroll();
+    };
+    const setBlockNode = (key: string, node: unknown) => {
+        blockNodes.current[key] = node;
+    };
+
+    // Поиск по тексту биографии — полем в шапке (см. useEffect ниже). Блоки
+    // в порядке страницы; у каждого — номер его первого совпадения.
+    const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
+    const [query, setQuery] = useState('');
+    const needle = pageNeedle(query);
+    const [active, setActive] = useState(0);
+
+    const search = useMemo(() => {
+        const blocks: { key: string; first: number; count: number }[] = [];
+        let total = 0;
+        const add = (key: string, texts: string[]) => {
+            const count = needle ? texts.reduce((sum, text) => sum + findMatches(text, needle).length, 0) : 0;
+            blocks.push({ key, first: total, count });
+            total += count;
+        };
+
+        personEvents.forEach((event, index) => add(`e${index}`, eventTexts(event)));
+        add('extra', [person?.дополнительный_текст ?? '']);
+        add('sources', sourceTexts(person?.Все_источники));
+
+        return { first: Object.fromEntries(blocks.map((block) => [block.key, block.first])), blocks, total };
+    }, [needle, personEvents, person]);
+
+    // Новый запрос — с первого совпадения.
+    const [lastNeedle, setLastNeedle] = useState(needle);
+    if (lastNeedle !== needle) {
+        setLastNeedle(needle);
+        setActive(0);
+    }
+
+    const current = search.total > 0 ? Math.min(active, search.total - 1) : null;
+    const step = (delta: number) => {
+        if (search.total === 0) return;
+        setActive((value) => (Math.min(value, search.total - 1) + delta + search.total) % search.total);
+    };
+
+    // К блоку с текущим совпадением.
+    useEffect(() => {
+        if (current === null) return;
+        const block = search.blocks.find((item) => current >= item.first && current < item.first + item.count);
+        if (block) scrollToBlock(block.key);
+    }, [current, search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const stepRef = useRef(step);
+    useEffect(() => {
+        stepRef.current = step;
+    });
+
+    useEffect(() => {
+        if (!person) return;
+        const onChangeText = (event: { nativeEvent: { text: string } }) => setQuery(event.nativeEvent.text);
+        const next = () => stepRef.current(1);
+
+        navigation.setOptions({
+            headerSearchBarOptions: {
+                placeholder: 'Найти в биографии',
+                cancelButtonText: 'Отмена',
+                autoCapitalize: 'none',
+                onChangeText,
+                // Enter — к следующему совпадению: на телефоне (кнопка «Найти»)
+                // и в вебе.
+                onSearchButtonPress: next,
+                onSubmitEditing: next,
+                onCancelButtonPress: () => setQuery(''),
+                onClose: () => setQuery(''),
+            },
+        });
+    }, [navigation, Boolean(person)]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // С общей карты — сразу к первому подсвеченному событию, один раз: при
     // обновлении страницы свайпом прыгать обратно незачем.
@@ -175,7 +289,11 @@ export default function PagePerson() {
         .map((year) => year ?? '...')
         .join('–');
 
-    const placeholder = loading ? (
+    // HTML этой страницы собирается один на все номера, без номера: при
+    // сборке и гидратации — загрузка, а не «не найден» (см. useIsClient).
+    const isClient = useIsClient();
+
+    const placeholder = loading || !isClient ? (
         <BlockLoading />
     ) : error ? (
         <BlockError error={error} onRetry={refresh} />
@@ -189,109 +307,220 @@ export default function PagePerson() {
     ) : null;
 
     return (
-        <Animated.ScrollView
-            ref={scrollRef}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            style={[styles.scroll, { backgroundColor: theme.background }]}
-            contentContainerStyle={[styles.content, placeholder && styles.contentFill]}
-            contentInsetAdjustmentBehavior="automatic"
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={refresh}
-                    tintColor={theme.textSecondary}
-                    colors={[theme.text]}
-                    progressBackgroundColor={theme.backgroundElement}
-                />
-            }>
-            {placeholder ? (
-                <>
-                    {menu}
-                    {placeholder}
-                </>
-            ) : person && (
-                <ThemedView style={styles.container}>
-                    {menu}
-                    {stale && <OfflineNotice updatedAt={updatedAt} onRetry={refresh} />}
+        <View style={styles.root}>
+            <PageScrollView
+                ref={scrollRef}
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+                style={[styles.scroll, { backgroundColor: theme.background }]}
+                contentContainerStyle={[styles.content, placeholder && styles.contentFill]}
+                contentInsetAdjustmentBehavior="automatic"
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={refresh}
+                        tintColor={theme.textSecondary}
+                        colors={[theme.text]}
+                        progressBackgroundColor={theme.backgroundElement}
+                    />
+                }>
+                {placeholder ? (
+                    <>
+                        {menu}
+                        {placeholder}
+                    </>
+                ) : person && (
+                    <ThemedView style={styles.container}>
+                        {menu}
+                        {stale && <OfflineNotice updatedAt={updatedAt} onRetry={refresh} />}
 
-                    <PersonPhotos photos={person.Фотографии} name={person.ФИО} fullWidth />
+                        <PersonPhotos photos={person.Фотографии} name={person.ФИО} fullWidth />
 
-                    <View
-                        style={styles.containerText}
-                        onLayout={(event) => {
-                            textTop.current = event.nativeEvent.layout.y;
-                            updateTitleBottom();
-                            tryScroll();
-                        }}>
-                        <View style={styles.containerTextMain}>
-                            <PersonRankLine holiness={holiness} style={styles.holiness} />
-                            <ThemedText
-                                style={styles.title}
-                                onLayout={(event) => {
-                                    titleHeight.current = event.nativeEvent.layout.height;
-                                    updateTitleBottom();
-                                }}>
-                                {title}
-                            </ThemedText>
-                            <ThemedText style={styles.subtitle}>
-                                {years}
-                                {person.сан_церк_служение ? `, ${person.сан_церк_служение}` : ''}
-                            </ThemedText>
-                        </View>
-
-                        {personEvents.map((event, index) => (
-                            <EventRow
-                                key={index}
-                                event={event}
-                                flashKey={flash?.indexes.includes(index) ? flash.key : null}
-                                onLayout={({ nativeEvent }) => {
-                                    eventTops.current[index] = nativeEvent.layout.y;
-                                    tryScroll();
-                                }}
-                            />
-                        ))}
-
-                        {person.дополнительный_текст && (
-                            <View style={styles.event}>
-                                <ThemedText type="smallBold" style={styles.eventDate}>
-                                    Дополнительно
+                        <View
+                            style={styles.containerText}
+                            onLayout={(event) => {
+                                textTop.current = event.nativeEvent.layout.y;
+                                updateTitleBottom();
+                                tryScroll();
+                            }}>
+                            <View style={styles.containerTextMain}>
+                                <PersonRankLine holiness={holiness} style={styles.holiness} />
+                                <ThemedText
+                                    style={styles.title}
+                                    onLayout={(event) => {
+                                        titleHeight.current = event.nativeEvent.layout.height;
+                                        updateTitleBottom();
+                                    }}>
+                                    {title}
                                 </ThemedText>
-                                <ThemedText type="small" style={styles.eventText}>
-                                    {person.дополнительный_текст}
+                                <ThemedText style={styles.subtitle}>
+                                    {years}
+                                    {person.сан_церк_служение ? `, ${person.сан_церк_служение}` : ''}
                                 </ThemedText>
                             </View>
+
+                            {personEvents.map((event, index) => (
+                                <EventRow
+                                    key={index}
+                                    event={event}
+                                    flashKey={flash?.indexes.includes(index) ? flash.key : null}
+                                    onLayout={(event) => onBlockLayout(`e${index}`, event)}
+                                    viewRef={(node) => setBlockNode(`e${index}`, node)}
+                                    needle={needle}
+                                    first={search.first[`e${index}`] ?? 0}
+                                    active={current}
+                                />
+                            ))}
+
+                            {person.дополнительный_текст && (
+                                <View
+                                ref={(node) => setBlockNode('extra', node)}
+                                style={styles.event}
+                                onLayout={(event) => onBlockLayout('extra', event)}>
+                                    <ThemedText type="smallBold" style={styles.eventDate}>
+                                        Дополнительно
+                                    </ThemedText>
+                                    <HighlightedText
+                                        type="small"
+                                        style={styles.eventText}
+                                        needle={needle}
+                                        first={search.first.extra}
+                                        active={current}>
+                                        {person.дополнительный_текст}
+                                    </HighlightedText>
+                                </View>
+                            )}
+
+                            <View ref={(node) => setBlockNode('sources', node)} onLayout={(event) => onBlockLayout('sources', event)}>
+                                <PersonSources
+                                    sources={person.Все_источники}
+                                    needle={needle}
+                                    first={search.first.sources}
+                                    active={current}
+                                />
+                            </View>
+                        </View>
+
+                        {number !== null && (
+                            <PersonMap
+                                number={number}
+                                events={personEvents}
+                                onShowInText={(index) => {
+                                    scrollToEvent(index);
+                                    flashEvents([index]);
+                                }}
+                            />
                         )}
 
-                        <PersonSources sources={person.Все_источники} />
-                    </View>
+                        <View style={styles.actions}>
+                            <ThemedText type="smallBold" style={styles.actionTitle}>
+                                Подробнее
+                            </ThemedText>
+                            <ListButton label='Поделиться' onPress={share} />
+                            <ListButton label="Уточнить сведения" onPress={() => router.push('/help')} />
+                        </View>
+                    </ThemedView>
+                )}
+            </PageScrollView>
 
-                    {number !== null && (
-                        <PersonMap
-                            number={number}
-                            events={personEvents}
-                            onShowInText={(index) => {
-                                scrollToEvent(index);
-                                flashEvents([index]);
-                            }}
-                        />
-                    )}
-
-                    <View style={styles.actions}>
-                        <ThemedText type="smallBold" style={styles.actionTitle}>
-                            Подробнее
-                        </ThemedText>
-                        <ListButton label='Поделиться' onPress={share} />
-                        <ListButton label="Уточнить сведения" onPress={() => router.push('/help')} />
-                    </View>
-                </ThemedView>
+            {needle !== '' && person && (
+                <SearchCounter
+                    current={current}
+                    total={search.total}
+                    onStep={step}
+                    style={{ bottom: insets.bottom + Spacing.three }}
+                />
             )}
-        </Animated.ScrollView>
+        </View>
+    );
+}
+
+/** «3 из 12» и стрелки к соседним совпадениям — внизу, поверх страницы. */
+function SearchCounter({
+    current,
+    total,
+    onStep,
+    style,
+}: {
+    current: number | null;
+    total: number;
+    onStep: (delta: number) => void;
+    style?: { bottom: number };
+}) {
+    const theme = useTheme();
+
+    return (
+        <View
+            pointerEvents="box-none"
+            style={[styles.counterHost, style]}>
+            <View style={[styles.counter, { backgroundColor: theme.backgroundRaised }]}>
+                <ThemedText type="small" style={styles.counterText}>
+                    {current === null ? 'Не найдено' : `${current + 1} из ${total}`}
+                </ThemedText>
+                {total > 1 && (
+                    <>
+                        <Pressable
+                            onPress={() => onStep(-1)}
+                            hitSlop={Spacing.one}
+                            accessibilityRole="button"
+                            accessibilityLabel="Предыдущее совпадение"
+                            style={({ pressed }) => [styles.counterButton, styles.chevronUp, pressed && styles.pressed]}>
+                            <Chevron direction="down" size={8} />
+                        </Pressable>
+                        <Pressable
+                            onPress={() => onStep(1)}
+                            hitSlop={Spacing.one}
+                            accessibilityRole="button"
+                            accessibilityLabel="Следующее совпадение"
+                            style={({ pressed }) => [styles.counterButton, pressed && styles.pressed]}>
+                            <Chevron direction="down" size={8} />
+                        </Pressable>
+                    </>
+                )}
+            </View>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    root: {
+        flex: 1,
+    },
+    counterHost: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+    },
+    counter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.one,
+        paddingLeft: Spacing.three,
+        paddingRight: Spacing.one,
+        paddingVertical: Spacing.one,
+        borderRadius: 999,
+        boxShadow: SurfaceShadow,
+    },
+    counterText: {
+        fontWeight: '600',
+        marginRight: Spacing.one,
+        minWidth: 64,
+        textAlign: 'center',
+    },
+    counterButton: {
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    chevronUp: {
+        transform: [{ rotate: '180deg' }],
+    },
+    pressed: {
+        opacity: 0.6,
+    },
     scroll: {
         flex: 1,
     },

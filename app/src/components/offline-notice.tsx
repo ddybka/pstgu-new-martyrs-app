@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { MONTHS_FOR_DATE } from '@/components/calendar/month-calendar';
+import { MONTHS_FOR_DATE } from '@/constants/months';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';

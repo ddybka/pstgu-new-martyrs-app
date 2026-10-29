@@ -7,17 +7,16 @@ import {
     TabListProps,
 } from 'expo-router/ui';
 import { router, usePathname } from 'expo-router';
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
+import { Image } from '@/components/ui/image';
 import { createContext, useContext, useState, type ComponentRef, type Ref } from 'react';
-import { Pressable, View, StyleSheet, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Pressable, View, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
 
 import { TAB_HEADER_MENU_ITEMS } from './tab-header-menu-items';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Dropdown } from './ui/dropdown';
 
+import { Icon } from './ui/icon';
 import { ButtonRadius, Colors, SurfaceRadius, HeadingFonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
@@ -114,7 +113,7 @@ function MenuButton({ open, onPress }: { open: boolean; onPress: () => void }) {
                 styles.iconButton,
                 pressed && styles.pressed,
             ]}>
-            <SymbolView
+            <Icon
                 name={{ web: open ? 'close' : 'menu' }}
                 size={MENU_ICON_SIZE}
                 tintColor={theme.text}
@@ -191,6 +190,7 @@ export function CustomTabList(props: TabListProps) {
                             source={require('@/assets/images/CircleLogo.svg')}
                             style={styles.brandIcon}
                             accessibilityIgnoresInvertColors
+                            alt="Логотип приложения"
                         />
                         <ThemedText type="smallBold" style={styles.brandText}>
                             Память
@@ -206,10 +206,9 @@ export function CustomTabList(props: TabListProps) {
                     // Ссылки — те же самые TabTrigger, просто переложенные в
                     // столбец, поэтому подсветка активной вкладки работает без
                     // отдельной копии состояния.
-                    <Animated.View
-                        entering={FadeIn.duration(MENU_DURATION)}
-                        exiting={FadeOut.duration(MENU_DURATION / 2)}
-                        style={styles.menu}>
+                    // Появляется CSS-анимацией, без reanimated: этот файл —
+                    // в коде каждой страницы сайта.
+                    <View style={[styles.menu, styles.menuEnter]}>
                         <CompactMenu.Provider value>
                             {props.children}
                             {TAB_HEADER_MENU_ITEMS.map((item) => (
@@ -218,7 +217,7 @@ export function CustomTabList(props: TabListProps) {
                                 </TabButton>
                             ))}
                         </CompactMenu.Provider>
-                    </Animated.View>
+                    </View>
                 )}
             </View>
         </View>
@@ -226,6 +225,11 @@ export function CustomTabList(props: TabListProps) {
 }
 
 const styles = StyleSheet.create({
+    menuEnter: {
+        animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
+        animationDuration: `${MENU_DURATION}ms`,
+        animationTimingFunction: 'ease-out',
+    } as ViewStyle,
     tabListContainer: {
         position: 'absolute',
         top: 0,

@@ -2,7 +2,7 @@ import { Camera, GeoJSONSource, Images, Layer, Map, type CameraRef } from '@mapl
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 
-import { PIE_SIZE, encodePng, parsePieName, renderPie } from './cluster-pie';
+import { PIE_SIZE, encodePng, parsePieName, pieImageExpression, renderPie } from './cluster-pie';
 import {
     BOUNDS_PADDING,
     CLUSTER_COUNT_LAYER_ID,
@@ -29,6 +29,9 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
+/** Сколько ждать после последней новой картинки кластера, прежде чем разложить слой заново. */
+const PIE_RELAYOUT_DELAY_MS = 150;
+
 export default function MartyrsMap({
     points,
     bounds,
@@ -44,6 +47,20 @@ export default function MartyrsMap({
     const cameraRef = useRef<CameraRef>(null);
     const [pies, setPies] = useState<Record<string, string>>({});
 
+    // Нативный MapLibre, не найдя картинку кластера, раскладывает тайл без
+    // неё и сам к ней не возвращается: дорисованная позже картинка появилась
+    // бы только на новых тайлах, а на остальных остался бы круг-подложка.
+    // Поэтому, когда новые картинки переданы карте и запросы утихли, слой
+    // раскладывается заново (новая версия выражения имени) — теперь все
+    // картинки на месте, и карта берёт их сразу.
+    const [pieVersion, setPieVersion] = useState(0);
+    const pieCount = Object.keys(pies).length;
+    useEffect(() => {
+        if (pieCount === 0) return;
+        const timer = setTimeout(() => setPieVersion((value) => value + 1), PIE_RELAYOUT_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, [pieCount]);
+
     const data = useMemo(() => toGeoJsonString(points), [points]);
     const layers = useMemo(
         () =>
@@ -56,6 +73,14 @@ export default function MartyrsMap({
                 isDark ? 'dark' : 'light'
             ),
         [theme.text, theme.background, mapStyle, isDark]
+    );
+    const pieLayout = useMemo(
+        () =>
+            layers && {
+                ...layers.clusterPie.layout,
+                'icon-image': pieImageExpression(isDark ? 'dark' : 'light', pieVersion),
+            },
+        [layers, isDark, pieVersion]
     );
     const selectedFilter = useMemo(() => selectionFilter(selected ?? []), [selected]);
 
@@ -151,7 +176,7 @@ export default function MartyrsMap({
                     if (id !== null) onEventsPress(idsAtSamePlace(points, id));
                 }}>
                 <Layer id={CLUSTER_LAYER_ID} {...layers.clusters} />
-                <Layer id={CLUSTER_PIE_LAYER_ID} {...layers.clusterPie} />
+                <Layer id={CLUSTER_PIE_LAYER_ID} {...layers.clusterPie} layout={pieLayout ?? layers.clusterPie.layout} />
                 <Layer id={SELECTED_LAYER_ID} {...layers.selection} filter={selectedFilter} />
                 <Layer id={POINT_LAYER_ID} {...layers.points} />
                 <Layer id={CLUSTER_COUNT_LAYER_ID} {...layers.clusterCount} />

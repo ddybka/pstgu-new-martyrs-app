@@ -35,7 +35,7 @@ export const CLUSTER_PROPERTIES = Object.fromEntries(
 ) as Record<string, ExpressionSpecification>;
 
 /** Имя картинки кластера из его свойств. */
-export function pieImageExpression(scheme: 'light' | 'dark'): ExpressionSpecification {
+export function pieImageExpression(scheme: 'light' | 'dark', version = 0): ExpressionSpecification {
     const parts = KIND_KEYS.flatMap((key, index) => {
         const count = ['get', key];
         const share = [
@@ -47,7 +47,13 @@ export function pieImageExpression(scheme: 'light' | 'dark'): ExpressionSpecific
         return index === 0 ? [['to-string', share]] : ['-', ['to-string', share]];
     });
 
-    return ['concat', `${PIE_PREFIX}${scheme}-`, ...parts] as unknown as ExpressionSpecification;
+    // Версия — пустая строка в конце имени, на само имя она не влияет. Новая
+    // версия — новое выражение, и карта заново раскладывает слой: так она
+    // подхватывает картинки, дорисованные уже после первой раскладки (см.
+    // `martyrs-map.tsx`).
+    const stamp = version > 0 ? [['case', ['==', 0, 1], String(version), '']] : [];
+
+    return ['concat', `${PIE_PREFIX}${scheme}-`, ...parts, ...stamp] as unknown as ExpressionSpecification;
 }
 
 /** Обратно из имени картинки: тема и доли по типам. */

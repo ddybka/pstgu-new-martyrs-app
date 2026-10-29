@@ -2,7 +2,10 @@ import { router } from 'expo-router';
 import { Suspense, lazy, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { KIND_COLORS, POINT_KINDS, kindColor } from './map/map-config';
+// Цвета и подписи типов — из лёгкого map-kinds, а не из map-config: тот тянет
+// за собой диаграммы кластеров и стиль подложки, а нужны они только самой
+// карте, которая грузится отдельно.
+import { KIND_COLORS, POINT_KINDS, kindColor } from './map/map-kinds';
 import { ThemedText } from './themed-text';
 import { Expandable } from './ui/expandable';
 import { PlateButton } from './ui/plate-button';
@@ -10,6 +13,7 @@ import { PlateButton } from './ui/plate-button';
 import { ButtonRadius, HeadingFonts, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { boundsOf, usePersonMapPoints } from '@/hooks/use-map-points';
+import { useNearViewport } from '@/hooks/use-near-viewport';
 import type { PersonEvent } from '@/hooks/use-persons';
 import { useTheme } from '@/hooks/use-theme';
 import { matchEvent } from '@/utils/match-events';
@@ -47,7 +51,10 @@ export function PersonMap({
     onShowInText: (index: number) => void;
 }) {
     const theme = useTheme();
-    const points = usePersonMapPoints(number);
+    // В вебе точки карты (~400 КБ) качаются, только когда блок близко к
+    // экрану: карта внизу биографии, и многие до неё не дочитывают.
+    const [nearRef, near] = useNearViewport();
+    const points = usePersonMapPoints(number, near);
     const colors = KIND_COLORS[useColorScheme()];
     const [open, setOpen] = useState(false);
     // Показанные точки живут дольше, чем `open`: пока блок сворачивается,
@@ -63,6 +70,8 @@ export function PersonMap({
             .map((point) => ({ point, match: matchEvent(point, events) }));
     }, [points, shownIds, events]);
 
+    // Пока не докрутили — метка, по которой понятно, что пора грузить.
+    if (!near) return <View ref={nearRef as never} style={styles.sentinel} />;
     if (points.length === 0) return null;
 
     const select = (ids: number[]) => {
@@ -137,6 +146,9 @@ export function PersonMap({
 const styles = StyleSheet.create({
     container: {
         marginTop: Spacing.six,
+    },
+    sentinel: {
+        height: 1,
     },
     title: {
         fontFamily: HeadingFonts.bold,

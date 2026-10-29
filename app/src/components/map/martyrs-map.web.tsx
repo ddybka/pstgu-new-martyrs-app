@@ -6,10 +6,9 @@ import {
     type MapLayerMouseEvent,
     type StyleSpecification,
 } from 'maplibre-gl';
-import { useEffect, useRef, type ComponentRef } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import 'maplibre-gl/dist/maplibre-gl.css';
 
 import {
     BOUNDS_PADDING,
@@ -41,6 +40,36 @@ import { useTheme } from '@/hooks/use-theme';
 
 setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
 
+/**
+ * Стили maplibre-gl подключаются, только когда карту открыли.
+ *
+ * Импорт .css статическая сборка поднимала в <head> каждой страницы, и
+ * десять килобайт стилей карты задерживали первую отрисовку и главной, и
+ * биографий. Файл кладёт в public/maplibre тот же скрипт, что и воркер.
+ * Карта создаётся после загрузки стилей: без них холст и подсказки
+ * встают не на свои места.
+ */
+const MAP_CSS_URL = '/maplibre/maplibre-gl.css';
+let mapCss: Promise<void> | null = null;
+let mapCssReady = false;
+
+function loadMapCss(): Promise<void> {
+    mapCss ??= new Promise<void>((resolve) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = MAP_CSS_URL;
+        // Не загрузились стили — карта всё равно лучше, чем пустое место.
+        link.onload = link.onerror = () => {
+            mapCssReady = true;
+            resolve();
+        };
+        // Первыми в <head>: правила подсказки поверх карты в GLOBAL_CSS должны
+        // их перекрывать.
+        document.head.prepend(link);
+    });
+    return mapCss;
+}
+
 const COOPERATIVE_LOCALE = {
     'CooperativeGesturesHandler.WindowsHelpText': 'Чтобы изменить масштаб, прокручивайте с зажатой клавишей Ctrl',
     'CooperativeGesturesHandler.MacHelpText': 'Чтобы изменить масштаб, прокручивайте с зажатой клавишей ⌘',
@@ -59,6 +88,18 @@ export default function MartyrsMap({
     const theme = useTheme();
 
     const containerRef = useRef<ComponentRef<typeof View>>(null);
+    const [cssReady, setCssReady] = useState(mapCssReady);
+
+    useEffect(() => {
+        if (cssReady) return;
+        let active = true;
+        void loadMapCss().then(() => {
+            if (active) setCssReady(true);
+        });
+        return () => {
+            active = false;
+        };
+    }, [cssReady]);
     const mapRef = useRef<MapLibreMap | null>(null);
 
     const onEventsPressRef = useRef(onEventsPress);
@@ -76,7 +117,7 @@ export default function MartyrsMap({
 
     useEffect(() => {
         const container = containerRef.current as unknown as HTMLElement | null;
-        if (!container || !mapStyle) return;
+        if (!container || !mapStyle || !cssReady) return;
 
         const map = new MapLibreMap({
             container,
@@ -180,7 +221,7 @@ export default function MartyrsMap({
             map.remove();
             mapRef.current = null;
         };
-    }, [mapStyle, isDark, theme.text, theme.background, interactive, boundsKey]);
+    }, [mapStyle, isDark, theme.text, theme.background, interactive, boundsKey, cssReady]);
 
     useEffect(() => {
         const map = mapRef.current;

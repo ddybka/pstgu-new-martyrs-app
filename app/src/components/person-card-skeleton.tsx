@@ -1,35 +1,12 @@
-import { useEffect } from 'react';
 import { StyleSheet, View, type DimensionValue } from 'react-native';
-import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withTiming,
-} from 'react-native-reanimated';
 
+import { Pulse } from '@/components/ui/pulse';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
  * Заглушка карточки на время загрузки — одна на оба вида.
  */
-
-const PULSE_MS = 900;
-
-function usePulse() {
-    const opacity = useSharedValue(0.6);
-
-    useEffect(() => {
-        opacity.value = withRepeat(
-            withTiming(1, { duration: PULSE_MS, easing: Easing.inOut(Easing.quad) }),
-            -1,
-            true
-        );
-    }, [opacity]);
-
-    return useAnimatedStyle(() => ({ opacity: opacity.value }));
-}
 
 /**
  * Строка текста: высотой с настоящую строку (`lineHeight`), а полоса в ней —
@@ -50,15 +27,11 @@ const SUBTITLE = { lineHeight: 21, barHeight: 12 };
 const TEXT = { lineHeight: 22, barHeight: 13 };
 
 export function PersonCardSkeleton() {
-    const pulse = usePulse();
     const theme = useTheme();
 
     return (
         <View style={[styles.card, { borderColor: theme.separator }]}>
-            <Animated.View
-                style={pulse}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants">
+            <Pulse>
                 <View style={styles.title}>
                     <Line width="65%" {...TITLE} />
                 </View>
@@ -72,7 +45,7 @@ export function PersonCardSkeleton() {
                     </View>
                     <Line width="55%" {...TEXT} />
                 </View>
-            </Animated.View>
+            </Pulse>
         </View>
     );
 }

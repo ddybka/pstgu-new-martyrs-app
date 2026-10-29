@@ -1,9 +1,10 @@
-import { SymbolView } from 'expo-symbols';
 import { memo, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { KIND_COLORS, POINT_KINDS, kindColor, type MartyrPoint } from './map-config';
+import type { MartyrPoint } from './map-config';
+import { KIND_COLORS, POINT_KINDS, kindColor } from './map-kinds';
 
+import { Icon } from '@/components/ui/icon';
 import { PersonRankLine } from '@/components/person-rank-line';
 import { ThemedText } from '@/components/themed-text';
 import { useNameOrder } from '@/context/name-order';
@@ -124,7 +125,7 @@ export function EventsPanel({
                     accessibilityRole="button"
                     accessibilityLabel="Закрыть"
                     style={({ pressed }) => pressed && styles.pressed}>
-                    <SymbolView
+                    <Icon
                         name={{ ios: 'xmark', android: 'close', web: 'close' }}
                         size={CLOSE_ICON_SIZE}
                         tintColor={theme.text}
@@ -162,7 +163,7 @@ export function EventsPanel({
                 ItemSeparatorComponent={Separator}
                 ListEmptyComponent={
                     <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                        Никого не нашлось
+                        Ничего не нашлось
                     </ThemedText>
                 }
                 renderItem={({ item }) => <GroupRow group={item} colors={colors} onOpenPerson={onOpenPerson} />}

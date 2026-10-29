@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { KIND_COLORS, POINT_KINDS } from './map-config';
+import { KIND_COLORS, POINT_KINDS } from './map-kinds';
 
 import { ThemedText } from '@/components/themed-text';
 import { Chevron } from '@/components/ui/chevron';

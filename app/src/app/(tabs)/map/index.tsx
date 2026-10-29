@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Dropdown } from '@/components/ui/dropdown';
 import { BottomTabInset, ButtonRadius, MaxContentWidth, Spacing, SurfaceShadow, WebHeaderInset } from '@/constants/theme';
 import { boundsOf, useMapPoints, usePersonMapPoints } from '@/hooks/use-map-points';
+import { useIsClient } from '@/hooks/use-is-client';
 import { normalizePersonNumber } from '@/hooks/use-person';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -171,11 +172,7 @@ export default function MapScreen() {
     const focusIds = useMemo(() => focusPoints.map((point) => point.id), [focusPoints]);
     const focusBounds = useMemo(() => boundsOf(focusPoints), [focusPoints]);
 
-    const isClient = useSyncExternalStore(
-        () => () => { },
-        () => true,
-        () => false
-    );
+    const isClient = useIsClient();
 
     // Точки читаются асинхронно (см. `use-map-points`). Камера ставится по
     // ним один раз, при создании карты, поэтому без точек карту не создаём:
