@@ -474,9 +474,9 @@ export default function PagePerson() {
 
                             {person.дополнительный_текст && (
                                 <View
-                                ref={(node) => setBlockNode('extra', node)}
-                                style={styles.event}
-                                onLayout={(event) => onBlockLayout('extra', event)}>
+                                    ref={(node) => setBlockNode('extra', node)}
+                                    style={styles.event}
+                                    onLayout={(event) => onBlockLayout('extra', event)}>
                                     <ThemedText type="smallBold" style={styles.eventDate}>
                                         Дополнительно
                                     </ThemedText>
@@ -698,6 +698,7 @@ const styles = StyleSheet.create({
         paddingTop: Spacing.six,
     },
     actionTitle: {
+        fontFamily: HeadingFonts.bold,
         marginBottom: Spacing.three,
         paddingHorizontal: Spacing.three,
         fontSize: 24,
