@@ -5,8 +5,10 @@ import { ShowCards } from '@/components/show-cards';
 import { ThemedText } from '@/components/themed-text';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import { MONTHS_FOR_DATE } from '@/constants/months';
 import { Spacing } from '@/constants/theme';
 import { usePersons } from '@/hooks/use-persons';
+import { useToday } from '@/hooks/use-today';
 import Constants from 'expo-constants';
 
 import type { Metadata } from 'expo-router/server';
@@ -39,6 +41,7 @@ export function generateMetadata(): Metadata {
 
 export default function HomeScreen() {
     const { persons, total, hasNext, loading, refreshing, error, stale, updatedAt, refresh } = usePersons();
+    const today = useToday();
 
     if (error) {
         return <BlockError error={error} onRetry={refresh} />;
@@ -47,7 +50,7 @@ export default function HomeScreen() {
     const header = (
         <View style={styles.header}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.date}>
-                {formatMartyrsCount(total)}
+                {formatMartyrsCount(total, today)}
             </ThemedText>
             <TabHeaderMenu />
         </View>
@@ -57,7 +60,7 @@ export default function HomeScreen() {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
-            <ListButton label="Настройки" onPress={() => router.push('/settings')} last />
+            <ListButton label="Настройки" onPress={() => router.push('/settings')} />
             <ThemedText
                 type="small"
                 themeColor="textSecondary"
@@ -106,7 +109,7 @@ const styles = StyleSheet.create({
     },
 });
 
-function formatMartyrsCount(count: number) {
+function formatMartyrsCount(count: number, today: Date | null) {
     const lastTwoDigits = count % 100;
     const lastDigit = count % 10;
 
@@ -119,10 +122,10 @@ function formatMartyrsCount(count: number) {
                     ? 'новомученика'
                     : 'новомучеников';
 
-    const ending =
-        lastDigit === 1 && lastTwoDigits !== 11
-            ? ',\nпоминаемый сегодня'
-            : ',\nпоминаемых сегодня';
+    // Дата — словами, как в «Календаре»: «поминаемых 29 октября». Пока
+    // веб-страница гидратируется, даты нет (см. useToday) — «сегодня».
+    const date = today ? `${today.getDate()} ${MONTHS_FOR_DATE[today.getMonth()].toLowerCase()}` : 'сегодня';
+    const participle = lastDigit === 1 && lastTwoDigits !== 11 ? 'поминаемый' : 'поминаемых';
 
-    return `Найдено ${count} ${noun}${ending}`;
+    return `Найдено ${count} ${noun},\n${participle} ${date}`;
 }

@@ -1,5 +1,3 @@
-import '@/global.css';
-
 import { Platform } from 'react-native';
 
 export const Colors = {
@@ -22,6 +20,8 @@ export const Colors = {
         textSecondary: '#60646C',
         /** Линии между строками: границы карточек в списках, кнопки-строки. */
         separator: '#C6C6C8',
+        /** Чин святости над именем канонизированных — бордовый. */
+        holiness: '#8E1B2C',
     },
     dark: {
         text: '#ffffff',
@@ -32,6 +32,8 @@ export const Colors = {
         backgroundSelected: '#2E3135',
         textSecondary: '#B0B4BA',
         separator: '#3A3A3C',
+        // На чёрном тёмный бордовый не читается — светлее и теплее.
+        holiness: '#E07585',
     },
 } as const;
 

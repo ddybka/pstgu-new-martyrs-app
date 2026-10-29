@@ -13,8 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { HeadingFonts } from '@/constants/theme';
 import { useReportScroll } from '@/hooks/use-header-shadow';
+import { DETAIL_TITLE_STYLE } from '@/hooks/use-stack-header';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Место, занятое кнопками шапки по бокам: заголовок не должен на них залезать. */
@@ -106,8 +106,9 @@ export function useScrollTitle(title: string | null) {
 }
 
 const styles = StyleSheet.create({
+    // Как у остальных страниц поверх вкладок (см. useDetailHeaderOptions).
     title: {
-        fontFamily: HeadingFonts.bold,
-        fontSize: 17,
+        ...DETAIL_TITLE_STYLE,
+        textAlign: 'center',
     },
 });

@@ -1,21 +1,32 @@
-import { Image } from "expo-image";
-import { useRef, useState, type ComponentRef } from "react";
+import { Image } from "@/components/ui/image";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import {
     ActivityIndicator,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
     View,
+    useWindowDimensions,
     type NativeScrollEvent,
     type NativeSyntheticEvent,
 } from "react-native";
 
 import { ThemedText } from "./themed-text";
+import { Chevron } from "@/components/ui/chevron";
 import { Spacing } from "@/constants/theme";
 import { usePersonPhotos, type PersonPhotoItem } from "@/hooks/use-image-person";
 import { useTheme } from "@/hooks/use-theme";
+import { markHttpsUnavailable } from "@/utils/api-fetch";
 
 const STRIP_HEIGHT = 200;
+
+/**
+ * С какой ширины окна у слайдера появляются стрелки — как у календаря. В вебе
+ * они есть всегда: мышью ленту не пролистать.
+ */
+const ARROWS_MIN_WIDTH = 700;
+const ARROW_SIZE = 40;
 
 /** Пределы высоты слайдера относительно ширины. */
 const PAGER_MIN_RATIO = 0.6;
@@ -43,9 +54,9 @@ export function PersonPhotos({
     name?: string;
     fullWidth?: boolean;
 }) {
-    const { photos: items, error } = usePersonPhotos(photos);
+    const { photos: items } = usePersonPhotos(photos);
 
-    if (items.length === 0 || error) return null;
+    if (items.length === 0) return null;
 
     return fullWidth ? (
         <PhotoPager items={items} name={name} />
@@ -55,15 +66,86 @@ export function PersonPhotos({
 }
 
 /**
+ * Миниатюра первого снимка — для выдачи поиска: по лицу человека находят
+ * быстрее, чем по строчке ФИО. Нет снимка или он не загрузился — ничего.
+ */
+export function PersonThumbnail({ photos, name, size = 64 }: { photos?: unknown; name?: string; size?: number }) {
+    const theme = useTheme();
+    const { photos: items } = usePersonPhotos(photos);
+    const item = items[0];
+    const photo = usePhotoSource(item);
+
+    if (!item || photo.failed) return null;
+
+    return (
+        <View
+            style={[
+                styles.thumbnail,
+                { width: size, height: Math.round(size * 1.25), backgroundColor: theme.backgroundElement },
+            ]}>
+            <Image
+                source={photo.source}
+                style={styles.fill}
+                contentFit="cover"
+                contentPosition="top"
+                transition={150}
+                recyclingKey={item.fileId}
+                accessibilityLabel={photoLabel(name, 0, 1)}
+                onLoad={photo.onLoad}
+                onError={photo.onError}
+            />
+        </View>
+    );
+}
+
+/**
+ * Сколько ждать снимок по HTTPS, прежде чем взять его по HTTP. Ошибки при
+ * этом может и не быть: когда HTTPS к серверу режут по пути, соединение
+ * просто висит, и ошибка загрузки пришла бы через минуты.
+ */
+const HTTPS_PHOTO_TIMEOUT_MS = 6000;
+
+/**
+ * Какой адрес снимка показывать: основной (HTTPS) или запасной (HTTP) — если
+ * основной не загрузился или не успел за HTTPS_PHOTO_TIMEOUT_MS. Переход на
+ * HTTP запоминается для всего приложения (см. `markHttpsUnavailable`), и
+ * следующие снимки сразу берутся по нему.
+ */
+function usePhotoSource(item: PersonPhotoItem | undefined) {
+    // 0 — основной адрес, 1 — запасной, дальше — не загрузилась.
+    const [attempt, setAttempt] = useState(0);
+    const [loaded, setLoaded] = useState(false);
+    const canFallback = Boolean(item?.fallback);
+
+    const toFallback = () => {
+        markHttpsUnavailable();
+        setAttempt((value) => Math.max(value, 1));
+    };
+
+    useEffect(() => {
+        if (loaded || attempt !== 0 || !canFallback) return;
+        const timer = setTimeout(toFallback, HTTPS_PHOTO_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [loaded, attempt, canFallback]);
+
+    return {
+        source: attempt >= 1 && item?.fallback ? item.fallback : item?.source,
+        failed: attempt > 1 || (attempt === 1 && !canFallback),
+        onLoad: () => setLoaded(true),
+        onError: () => (attempt === 0 && canFallback ? toFallback() : setAttempt(2)),
+    };
+}
+
+/**
  * Первый снимок для карточки списка — как было до слайдера: высотой
  * STRIP_HEIGHT, шириной по пропорциям, прижат влево. Остальные снимки
  * на странице новомученика.
  */
 function PhotoSingle({ item, name }: { item: PersonPhotoItem; name?: string }) {
-    const [failed, setFailed] = useState(false);
+    const photo = usePhotoSource(item);
     const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
-    if (failed) return null;
+    if (photo.failed) return null;
 
     // Ширина — по пропорциям снимка, но не шире карточки: это делает сама
     // раскладка (`aspectRatio` и `maxWidth`), без замера рамки и лишней
@@ -72,20 +154,19 @@ function PhotoSingle({ item, name }: { item: PersonPhotoItem; name?: string }) {
 
     return (
         <View style={styles.single}>
-            {item.source && (
-                <Image
-                    source={item.source}
-                    style={[styles.singleImage, size]}
-                    contentFit="contain"
-                    contentPosition="left"
-                    transition={200}
-                    accessibilityLabel={photoLabel(name, 0, 1)}
-                    onLoad={({ source }) => {
-                        if (source.width && source.height) setAspectRatio(source.width / source.height);
-                    }}
-                    onError={() => setFailed(true)}
-                />
-            )}
+            <Image
+                source={photo.source}
+                style={[styles.singleImage, size]}
+                contentFit="contain"
+                contentPosition="left"
+                transition={200}
+                accessibilityLabel={photoLabel(name, 0, 1)}
+                onLoad={({ source }) => {
+                    photo.onLoad();
+                    if (source.width && source.height) setAspectRatio(source.width / source.height);
+                }}
+                onError={photo.onError}
+            />
 
             {!aspectRatio && <ActivityIndicator style={styles.singleLoader} />}
         </View>
@@ -94,6 +175,7 @@ function PhotoSingle({ item, name }: { item: PersonPhotoItem; name?: string }) {
 
 function PhotoPager({ items, name }: { items: PersonPhotoItem[]; name?: string }) {
     const theme = useTheme();
+    const windowWidth = useWindowDimensions().width;
     const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
     const [width, setWidth] = useState(0);
     const [index, setIndex] = useState(0);
@@ -102,6 +184,7 @@ function PhotoPager({ items, name }: { items: PersonPhotoItem[]; name?: string }
 
     const single = items.length === 1;
     const current = items[Math.min(index, items.length - 1)];
+    const showArrows = !single && (Platform.OS === 'web' || windowWidth > ARROWS_MIN_WIDTH);
 
     // Высота — по первому снимку: открывается слайдер на нём, и он смотрится
     // так же, как одиночное фото. Остальные вписываются в ту же рамку, иначе
@@ -147,22 +230,12 @@ function PhotoPager({ items, name }: { items: PersonPhotoItem[]; name?: string }
                                         </ThemedText>
                                     </View>
                                 ) : (
-                                    item.source && (
-                                        <Image
-                                            source={item.source}
-                                            style={styles.fill}
-                                            contentFit="contain"
-                                            transition={200}
-                                            accessibilityLabel={photoLabel(name, itemIndex, items.length)}
-                                            onLoad={({ source }) => {
-                                                if (source.width && source.height) {
-                                                    const ratio = source.width / source.height;
-                                                    setRatios((prev) => ({ ...prev, [item.fileId]: ratio }));
-                                                }
-                                            }}
-                                            onError={() => setFailed((prev) => new Set(prev).add(item.fileId))}
-                                        />
-                                    )
+                                    <PagerImage
+                                        item={item}
+                                        accessibilityLabel={photoLabel(name, itemIndex, items.length)}
+                                        onRatio={(ratio) => setRatios((prev) => ({ ...prev, [item.fileId]: ratio }))}
+                                        onFailed={() => setFailed((prev) => new Set(prev).add(item.fileId))}
+                                    />
                                 )}
 
                                 {!ratios[item.fileId] && !failed.has(item.fileId) && (
@@ -171,6 +244,17 @@ function PhotoPager({ items, name }: { items: PersonPhotoItem[]; name?: string }
                             </View>
                         ))}
                     </ScrollView>
+                )}
+
+                {showArrows && width > 0 && (
+                    <>
+                        {index > 0 && (
+                            <PagerArrow direction="left" onPress={() => goTo(index - 1)} />
+                        )}
+                        {index < items.length - 1 && (
+                            <PagerArrow direction="right" onPress={() => goTo(index + 1)} />
+                        )}
+                    </>
                 )}
             </View>
 
@@ -208,7 +292,95 @@ function PhotoPager({ items, name }: { items: PersonPhotoItem[]; name?: string }
     );
 }
 
+/** Снимок слайдера: свой адрес, свой таймаут HTTPS (см. usePhotoSource). */
+function PagerImage({
+    item,
+    accessibilityLabel,
+    onRatio,
+    onFailed,
+}: {
+    item: PersonPhotoItem;
+    accessibilityLabel?: string;
+    onRatio: (ratio: number) => void;
+    onFailed: () => void;
+}) {
+    const photo = usePhotoSource(item);
+
+    useEffect(() => {
+        if (photo.failed) onFailed();
+    }, [photo.failed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return (
+        <Image
+            source={photo.source}
+            style={styles.fill}
+            contentFit="contain"
+            transition={200}
+            accessibilityLabel={accessibilityLabel}
+            onLoad={({ source }) => {
+                photo.onLoad();
+                if (source.width && source.height) onRatio(source.width / source.height);
+            }}
+            onError={photo.onError}
+        />
+    );
+}
+
+function PagerArrow({ direction, onPress }: { direction: 'left' | 'right'; onPress: () => void }) {
+    const theme = useTheme();
+
+    return (
+        <Pressable
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={direction === 'left' ? 'Предыдущая фотография' : 'Следующая фотография'}
+            style={({ pressed, hovered }) => [
+                styles.arrow,
+                direction === 'left' ? styles.arrowLeft : styles.arrowRight,
+                { backgroundColor: theme.backgroundRaised },
+                (pressed || hovered) && styles.arrowActive,
+            ]}>
+            {/* Повёрнутый уголок визуально тяжелее со стороны острия —
+                сдвиг на пиксель назад ставит его по центру кружка. */}
+            <View style={direction === 'left' ? styles.chevronLeft : styles.chevronRight}>
+                <Chevron direction={direction} />
+            </View>
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
+    arrow: {
+        position: 'absolute',
+        top: '50%',
+        width: ARROW_SIZE,
+        height: ARROW_SIZE,
+        marginTop: -ARROW_SIZE / 2,
+        borderRadius: ARROW_SIZE / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: 0.85,
+        boxShadow: '0 1px 6px rgba(0, 0, 0, 0.2)',
+    },
+    arrowLeft: {
+        left: Spacing.three,
+    },
+    arrowRight: {
+        right: Spacing.three,
+    },
+    chevronLeft: {
+        transform: [{ translateX: 2 }, { translateY: -1 }],
+    },
+    chevronRight: {
+        transform: [{ translateX: -2 }, { translateY: -1 }],
+    },
+    arrowActive: {
+        opacity: 1,
+    },
+    thumbnail: {
+        borderRadius: Spacing.one + Spacing.half,
+        overflow: 'hidden',
+    },
     single: {
         width: '100%',
         height: STRIP_HEIGHT,

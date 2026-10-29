@@ -6,7 +6,9 @@ import { TabHeaderMenu } from '@/components/tab-header-menu';
 import { ShowCards } from '@/components/show-cards';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { BlockLoading } from '@/components/block-loading';
 import { dayOfYearFilter, usePersons } from '@/hooks/use-persons';
+import { useToday } from '@/hooks/use-today';
 import { readStored, writeStored } from '@/utils/storage';
 import { ListButton } from '@/components/list-button';
 import { router } from 'expo-router';
@@ -55,13 +57,25 @@ function parseStored(raw: string | null): CalendarDate | null {
     }
 }
 
-function todayDate(): CalendarDate {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
+function toCalendarDate(date: Date): CalendarDate {
+    return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
 }
 
+/**
+ * Календарь целиком зависит от сегодняшней даты: выбранный день, подсветка
+ * «сегодня», заголовок. В вебе HTML собран заранее, и дата в нём — дня
+ * сборки, поэтому, пока страница гидратируется, вместо календаря — загрузка,
+ * а сам он рисуется уже с сегодняшней датой (см. useToday).
+ */
 export default function CalendarScreen() {
-    const [selected, setSelected] = useState<CalendarDate>(todayDate);
+    const today = useToday();
+    if (!today) return <BlockLoading />;
+
+    return <CalendarContent today={today} />;
+}
+
+function CalendarContent({ today }: { today: Date }) {
+    const [selected, setSelected] = useState<CalendarDate>(() => toCalendarDate(today));
     const [calendarKey, setCalendarKey] = useState(0);
     const touched = useRef(false);
 
@@ -105,7 +119,7 @@ export default function CalendarScreen() {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
-            <ListButton label="Настройки" onPress={() => router.push('/settings')} last />
+            <ListButton label="Настройки" onPress={() => router.push('/settings')} />
             <ThemedText
                 type="small"
                 themeColor="textSecondary"

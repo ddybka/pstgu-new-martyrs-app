@@ -35,8 +35,14 @@ export function ContainedHeader({ options, route, back }: NativeStackHeaderProps
                     headerTintColor={options.headerTintColor}
                     headerLeft={options.headerLeft}
                     headerRight={options.headerRight}
+                    // Поиск в шапке (страница новомученика): кнопка-лупа,
+                    // которая раскрывается в поле поверх шапки.
+                    headerSearchBarOptions={options.headerSearchBarOptions}
                     headerShadowVisible={false}
-                    headerStyle={{ backgroundColor: background }}
+                    // Фон — только у полосы снаружи: там он меняется плавно
+                    // (transition). Свой фон у шапки в колонке менялся бы
+                    // мгновенно, и середина перекрашивалась раньше краёв.
+                    headerStyle={{ backgroundColor: 'transparent' }}
                     back={back}
                 />
             </View>

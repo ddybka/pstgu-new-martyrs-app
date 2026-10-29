@@ -3,7 +3,7 @@
         "name": "Память",
         "slug": "pamyat-novomuchenikov",
         "version": "1.0.0",
-        "orientation": "portrait",
+        "orientation": "default",
         "icon": "./assets/images/icon.png",
         "scheme": "app",
         "userInterfaceStyle": "automatic",
@@ -13,12 +13,16 @@
             "backgroundColor": "#1C1C1C"
         },
         "ios": {
+            "supportsTablet": true,
             "icon": {
                 "light": "./assets/images/icon.png",
                 "dark": "./assets/images/icon-ios-dark.png",
                 "tinted": "./assets/images/icon-ios-tinted.png"
             },
-            "bundleIdentifier": "com.dybka.pamyat-novomuchenikov"
+            "bundleIdentifier": "com.dybka.pamyat-novomuchenikov",
+            "infoPlist": {
+                "CADisableMinimumFrameDurationOnPhone": true
+            }
         },
         "android": {
             "adaptiveIcon": {
@@ -54,7 +58,8 @@
                 {
                     "domains": [
                         "api.nmbook.ru",
-                        "map.nmbook.ru"
+                        "map.nmbook.ru",
+                        "img.nmbook.ru"
                     ]
                 }
             ]

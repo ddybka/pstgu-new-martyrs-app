@@ -19,10 +19,14 @@ export type SearchHit = {
     /** ФИО по-справочному: «АБРАМОВ Сергей Николаевич». */
     name: string;
     rank: string;
+    /** Чин святости канонизированных: «исповедник». */
+    holiness: string | null;
     born: number | null;
     died: number | null;
     /** Фрагмент биографии с `<mark>`; без сети его нет. */
     snippet: string | null;
+    /** Фотографии дела, как в записи; без сети их нет. */
+    photos?: unknown[];
 };
 
 export type PersonSearch = {
@@ -43,9 +47,11 @@ type SearchItem = {
     Номер: number;
     ФИО?: string;
     сан_церк_служение?: string;
+    чин_святости?: string;
     год_рождения?: number;
     год_кончины?: number;
     пояснение?: string;
+    поля?: { Фотографии?: unknown[] };
 };
 
 type SearchResponse = {
@@ -63,15 +69,20 @@ function toHit(item: SearchItem): SearchHit {
         number: item.Номер,
         name: item.ФИО ?? `Дело №${item.Номер}`,
         rank: item.сан_церк_служение ?? '',
+        holiness: item.чин_святости ?? null,
         born: item.год_рождения ?? null,
         died: item.год_кончины ?? null,
         snippet: item.пояснение ?? null,
+        photos: item.поля?.Фотографии,
     };
 }
 
 function fetchPage(query: string, skip: number) {
     const params = new URLSearchParams({
         data_format: 'item',
+        // Фотографии — ради миниатюры в выдаче: это лишь ссылки на файлы, и
+        // ответ от них почти не тяжелеет.
+        fields: 'Фотографии',
         text_filter: query,
         skip: String(skip),
         take: String(PAGE_SIZE),

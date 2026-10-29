@@ -36,13 +36,30 @@ export type Person = {
     имя?: string;
     отчество?: string;
     сан_церк_служение?: string;
+    /** Чин святости канонизированных; в списке (формат `item`) — сверху записи. */
+    чин_святости?: string;
+    /** В полной записи чин святости — здесь. */
+    Канонизация?: { чин_святости?: string };
     Рождение?: PersonDate;
     Кончина?: PersonDate;
     События?: PersonEvent[];
     дополнительный_текст?: string;
     Фотографии?: unknown[];
+    /** Все источники биографии — в полной записи. */
+    Все_источники?: PersonSource[];
     [key: string]: unknown;
 };
+
+export type PersonSource = {
+    источник?: string;
+    /** «документ», «публикация», «интернет-ресурс», «воспоминания»… */
+    тип?: string;
+};
+
+/** Чин святости: в списке он лежит сверху записи, в полной — в `Канонизация`. */
+export function holinessOf(person: Pick<Person, 'чин_святости' | 'Канонизация'> | null | undefined) {
+    return person?.чин_святости ?? person?.Канонизация?.чин_святости ?? null;
+}
 
 export type PersonsResponse = {
     success: boolean;
@@ -118,7 +135,7 @@ function collected(page: PersonItemsResponse, items: Person[], hasNext: boolean)
  * новомучеников за сотню, список больше не ждёт всех страниц подряд.
  * Остальные дописываются снизу, и то, что уже на экране, не сдвигается.
  */
-async function fetchAllPersons(url: string, onPartial?: (partial: PersonsResponse) => void): Promise<PersonsResponse> {
+export async function fetchAllPersons(url: string, onPartial?: (partial: PersonsResponse) => void): Promise<PersonsResponse> {
     const items: Person[] = [];
     let page: PersonItemsResponse;
 

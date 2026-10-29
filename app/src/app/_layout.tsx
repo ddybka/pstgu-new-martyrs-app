@@ -1,5 +1,3 @@
-import { PTSerif_400Regular } from '@expo-google-fonts/pt-serif/400Regular';
-import { PTSerif_700Bold } from '@expo-google-fonts/pt-serif/700Bold';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -7,15 +5,16 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { preloadMapStyle } from '@/components/map/map-style';
 import { BackButton } from '@/components/header-buttons';
+import { FONT_SOURCES } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { CardViewProvider } from '@/context/card-view';
 import { ColorSchemeProvider } from '@/context/color-scheme';
 import { LoginProvider } from '@/context/login';
+import { NameOrderProvider } from '@/context/name-order';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { preloadMapPoints } from '@/hooks/use-map-points';
 import { useDetailHeaderOptions } from '@/hooks/use-stack-header';
+import { preloadMap } from '@/utils/preload-map';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,7 +30,9 @@ export default function RootLayout() {
     return (
         <ColorSchemeProvider>
             <CardViewProvider>
-                <RootNavigator />
+                <NameOrderProvider>
+                    <RootNavigator />
+                </NameOrderProvider>
             </CardViewProvider>
         </ColorSchemeProvider>
     );
@@ -42,24 +43,20 @@ function RootNavigator() {
     const colors = Colors[colorScheme];
 
     const personOptions = useDetailHeaderOptions();
-    const aboutOptions = useDetailHeaderOptions('О проекте', { large: true });
-    const helpOptions = useDetailHeaderOptions('Помочь проекту', { large: true });
-    const SettingsOptions = useDetailHeaderOptions('Настройки', { large: true });
+    const aboutOptions = useDetailHeaderOptions('О проекте');
+    const helpOptions = useDetailHeaderOptions('Помочь проекту');
+    const SettingsOptions = useDetailHeaderOptions('Настройки');
 
-    const [fontsLoaded, fontsError] = useFonts({ PTSerif_400Regular, PTSerif_700Bold });
+    // На телефоне — файлы из assets/fonts; в вебе список пуст, и отрисовка
+    // шрифт не ждёт: он подключён через @font-face со swap (см. global.css).
+    const [fontsLoaded, fontsError] = useFonts(FONT_SOURCES);
 
     // Карту готовим заранее: к моменту, когда откроют вкладку, точки уже
-    // разобраны, а стиль подложки лежит в памяти. В вебе — нет: там это
-    // лишние два мегабайта для тех, кто до карты не дойдёт.
+    // разобраны, а стиль подложки лежит в памяти. В вебе — нет (см.
+    // preload-map.web): там это лишние мегабайты для тех, кто до карты не дойдёт.
     const isDark = colorScheme === 'dark';
     useEffect(() => {
-        if (Platform.OS === 'web') return;
-
-        const timer = setTimeout(() => {
-            preloadMapPoints();
-            preloadMapStyle(isDark);
-        }, MAP_PRELOAD_DELAY_MS);
-
+        const timer = setTimeout(() => preloadMap(isDark), MAP_PRELOAD_DELAY_MS);
         return () => clearTimeout(timer);
     }, [isDark]);
     if (!fontsLoaded && !fontsError) return null;

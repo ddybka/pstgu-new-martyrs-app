@@ -4,6 +4,9 @@ import type {
     SymbolLayerSpecification,
 } from '@maplibre/maplibre-gl-style-spec';
 
+import { CLUSTER_PROPERTIES, PIE_SIZE, pieImageExpression } from './cluster-pie';
+import type { KindColors } from './map-kinds';
+
 /**
  * Общая часть карты для натива и веба.
  *
@@ -48,15 +51,30 @@ export const INITIAL_VIEW = {
 
 export const SOURCE_ID = 'martyrs';
 export const CLUSTER_LAYER_ID = 'martyrs-clusters';
+export const CLUSTER_PIE_LAYER_ID = 'martyrs-cluster-pie';
 export const CLUSTER_COUNT_LAYER_ID = 'martyrs-cluster-count';
 export const POINT_LAYER_ID = 'martyrs-points';
 export const SELECTED_LAYER_ID = 'martyrs-selected';
 
+/**
+ * Кластеризация (supercluster внутри MapLibre). `clusterRadius` — то же, что
+ * `gridSize` у Яндекс.Карт: в пикселях экрана, точки ближе друг к другу
+ * сливаются в один кластер. Чем он больше, тем кластеров меньше и тем
+ * больше видно саму карту.
+ */
 export const CLUSTER_OPTIONS = {
     cluster: true,
-    clusterRadius: 48,
+    clusterRadius: 80,
     clusterMaxZoom: 12,
+    // Сколько в кластере событий каждого типа — для секторов (см. cluster-pie).
+    clusterProperties: CLUSTER_PROPERTIES,
 };
+
+/**
+ * Радиус кластера растёт ступенями, а не линейно: разница между «3» и «5»
+ * читается плохо, а между «3» и «30» должна быть заметной.
+ */
+const CLUSTER_RADIUS = ['step', ['get', 'point_count'], 13, 10, 17, 100, 21];
 
 /** Одна точка на карте — место, связанное с конкретным делом. */
 export type MartyrPoint = {
@@ -76,41 +94,7 @@ export type MartyrPoint = {
     text: string;
 };
 
-/**
- * Типы точек в порядке показа в фильтре. Ключи — как в данных
- * (`clusterType` у map.nmbook.ru).
- */
-export const POINT_KINDS = [
-    { kind: 'репрессии', label: 'Репрессии' },
-    { kind: 'служение', label: 'Служение' },
-    { kind: 'кончина', label: 'Кончина' },
-    { kind: 'другое', label: 'Другое' },
-] as const;
-
-/**
- * Цвет точки по типу. Светлый и тёмный наборы свои: на чёрной подложке
- * насыщенные цвета светлой темы проваливаются в фон.
- */
-export const KIND_COLORS = {
-    light: {
-        репрессии: '#E03131',
-        служение: '#1971C2',
-        кончина: '#6741D9',
-        другое: '#868E96',
-    },
-    dark: {
-        репрессии: '#FF6B6B',
-        служение: '#4DABF7',
-        кончина: '#B197FC',
-        другое: '#ADB5BD',
-    },
-} as const;
-
-export type KindColors = (typeof KIND_COLORS)[keyof typeof KIND_COLORS];
-
-export function kindColor(colors: KindColors, kind: string): string {
-    return (colors as Record<string, string>)[kind] ?? colors.другое;
-}
+export { KIND_COLORS, POINT_KINDS, kindColor, type KindColors } from './map-kinds';
 
 export function toFeatureCollection(points: readonly MartyrPoint[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
     return {
@@ -163,18 +147,32 @@ export function buildLayers(
     contrast: string,
     font: readonly string[],
     kindColors: KindColors,
+    scheme: 'light' | 'dark',
     selected: readonly number[] = []
 ) {
+    // Подложка кластера: видна, пока картинка с секторами ещё не нарисована,
+    // и по ней же ловятся нажатия.
     const clusters: Omit<CircleLayerSpecification, 'id' | 'source'> = {
         type: 'circle',
         filter: ['has', 'point_count'],
         paint: {
-            'circle-color': accent,
-            // Кружок растёт ступенями, а не линейно: разница между «3» и «5»
-            // читается плохо, а между «3» и «30» должна быть заметной.
-            'circle-radius': ['step', ['get', 'point_count'], 16, 10, 22, 50, 28],
+            'circle-color': contrast,
+            'circle-radius': CLUSTER_RADIUS as unknown as number,
             'circle-stroke-width': 2,
-            'circle-stroke-color': contrast,
+            'circle-stroke-color': accent,
+        },
+    };
+
+    // Сектора по типам событий — картинкой (см. cluster-pie). Картинка одна
+    // на все размеры и сжимается под радиус кластера.
+    const clusterPie: Omit<SymbolLayerSpecification, 'id' | 'source'> = {
+        type: 'symbol',
+        filter: ['has', 'point_count'],
+        layout: {
+            'icon-image': pieImageExpression(scheme),
+            'icon-size': ['/', ['*', 2, CLUSTER_RADIUS], PIE_SIZE] as unknown as number,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
         },
     };
 
@@ -185,10 +183,11 @@ export function buildLayers(
             'text-field': ['get', 'point_count_abbreviated'],
             // Шрифт должен существовать в glyphs подложки (см. MAP_FONTS).
             'text-font': [...font],
-            'text-size': 13,
+            'text-size': 12,
             'text-allow-overlap': true,
         },
-        paint: { 'text-color': contrast },
+        // Число — на круге цвета фона в середине кластера.
+        paint: { 'text-color': accent },
     };
 
     const points: Omit<CircleLayerSpecification, 'id' | 'source'> = {
@@ -218,7 +217,7 @@ export function buildLayers(
         },
     };
 
-    return { clusters, clusterCount, points, selection };
+    return { clusters, clusterPie, clusterCount, points, selection };
 }
 
 /** Фильтр слоя обводки: одиночные точки из выбранных. */
@@ -240,11 +239,16 @@ export type MartyrsMapProps = {
      */
     bounds?: MapBounds | null;
     /**
-     * Жесты: сдвиг, зум, поворот. Без них карта — картинка, которая не
-     * спорит с прокруткой страницы (карта на странице новомученика). Нажатия
-     * на точки работают и без жестов.
+     * Жесты: сдвиг, зум, поворот. Нажатия на точки работают и без жестов.
+     *
+     * - `true` — все жесты, карта на весь экран;
+     * - `'embedded'` — карта внутри прокручиваемой страницы (страница
+     *   новомученика): сдвиг и зум есть, поворота и наклона нет, а в вебе
+     *   колесо листает страницу, зум — с Ctrl/⌘, на сенсорном экране карта
+     *   двигается двумя пальцами;
+     * - `false` — без жестов, карта-картинка.
      */
-    interactive?: boolean;
+    interactive?: boolean | 'embedded';
     /**
      * Нажатие на точку или кластер — id всех точек под пальцем: у точки это
      * все события с теми же координатами (разные люди в одном месте, или
@@ -253,6 +257,11 @@ export type MartyrsMapProps = {
     onEventsPress?: (ids: number[]) => void;
     /** Точки, обведённые как выбранные. */
     selected?: readonly number[];
+    /**
+     * Куда перевести камеру после создания карты — например, на найденное.
+     * Новый `key` — новый перелёт, даже к той же рамке.
+     */
+    focus?: { bounds: MapBounds; key: number } | null;
 };
 
 /**

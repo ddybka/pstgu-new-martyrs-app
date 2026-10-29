@@ -8,8 +8,11 @@ import type { SearchHit } from '@/hooks/use-person-search';
  * без сети сайт не откроется, а два мегабайта в бандле — заметная цена.
  */
 
-/** Номер дела, ФИО, сан, год рождения, год кончины (0 — неизвестен). */
-type IndexEntry = [number, string, string, number, number];
+/**
+ * Номер дела, ФИО, сан, год рождения, год кончины (0 — неизвестен), чин
+ * святости (в списках, собранных до него, его нет).
+ */
+type IndexEntry = [number, string, string, number, number, string?];
 
 type Index = {
     entries: IndexEntry[];
@@ -70,7 +73,7 @@ export function searchOffline(query: string): SearchHit[] {
     matches.sort((a, b) => b.score - a.score);
 
     return matches.slice(0, MAX_RESULTS).map(({ index }) => {
-        const [number, name, rank, born, died] = entries[index];
-        return { number, name, rank, born: born || null, died: died || null, snippet: null };
+        const [number, name, rank, born, died, holiness] = entries[index];
+        return { number, name, rank, holiness: holiness || null, born: born || null, died: died || null, snippet: null };
     });
 }

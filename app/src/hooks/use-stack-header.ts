@@ -63,7 +63,14 @@ export function useStackHeaderOptions(title: string, { large = true, material = 
     return { headerShown: false } as const;
 }
 
-export function useDetailHeaderOptions(title = '', { large = false } = {}) {
+/**
+ * Заголовок страниц, открытых поверх вкладок, — как у системных экранов:
+ * маленький, по центру шапки (по центру экрана, а не промежутка между
+ * кнопками) и обычным шрифтом. Заголовочная гарнитура остаётся вкладкам.
+ */
+export const DETAIL_TITLE_STYLE = { fontSize: 17, fontWeight: '600' } as const;
+
+export function useDetailHeaderOptions(title = '') {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const blurEffect = isDark ? 'systemMaterialDark' : 'systemMaterialLight';
@@ -71,14 +78,13 @@ export function useDetailHeaderOptions(title = '', { large = false } = {}) {
     if (Platform.OS === 'ios') {
         return {
             title,
-            headerLargeTitle: large,
+            headerLargeTitle: false,
+            headerTitleAlign: 'center',
             headerTransparent: true,
             headerShadowVisible: false,
             headerTintColor: theme.text,
-            headerLargeStyle: { backgroundColor: 'transparent' },
             headerBlurEffect: isLiquidGlassAvailable() ? undefined : blurEffect,
-            headerLargeTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
-            headerTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
+            headerTitleStyle: { color: theme.text, ...DETAIL_TITLE_STYLE },
             contentStyle: { backgroundColor: theme.background },
             scrollEdgeEffects: { top: 'hard' },
         } as const;
@@ -86,10 +92,11 @@ export function useDetailHeaderOptions(title = '', { large = false } = {}) {
 
     return {
         title,
+        headerTitleAlign: 'center',
         headerShadowVisible: false,
         headerTintColor: theme.text,
         headerStyle: { backgroundColor: theme.background },
-        headerTitleStyle: { color: theme.text, fontFamily: HeadingFonts.bold },
+        headerTitleStyle: { color: theme.text, ...DETAIL_TITLE_STYLE },
         contentStyle: { backgroundColor: theme.background },
         // В вебе шапка в колонке содержимого, а не по краям окна. Именно
         // элементом, а не `header: ContainedHeader`: стек вызывает `header`

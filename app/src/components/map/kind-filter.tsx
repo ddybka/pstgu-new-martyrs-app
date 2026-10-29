@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { KIND_COLORS, POINT_KINDS } from './map-config';
+import { KIND_COLORS, POINT_KINDS } from './map-kinds';
 
 import { ThemedText } from '@/components/themed-text';
+import { Chevron } from '@/components/ui/chevron';
 import { Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
@@ -18,6 +20,7 @@ export function KindFilter({
     counts,
     inset = Spacing.three,
     style,
+    children,
 }: {
     hidden: ReadonlySet<string>;
     onChange: (hidden: ReadonlySet<string>) => void;
@@ -26,6 +29,8 @@ export function KindFilter({
     /** Отступ первого и последнего переключателя от краёв ленты. */
     inset?: number;
     style?: StyleProp<ViewStyle>;
+    /** Другие фильтры — в той же ленте, после типов. */
+    children?: ReactNode;
 }) {
     const theme = useTheme();
     const colors = KIND_COLORS[useColorScheme()];
@@ -76,7 +81,57 @@ export function KindFilter({
                     </Pressable>
                 );
             })}
+            {children}
         </ScrollView>
+    );
+}
+
+/**
+ * Переключатель в той же ленте — для фильтров, у которых нет цвета на карте
+ * («Прославленные»). Без `onPress` это просто плашка — для кнопки выпадающего
+ * списка, нажатие которой ловит сам список; `dropdown` дорисовывает шеврон.
+ */
+export function FilterChip({
+    label,
+    on,
+    onPress,
+    dropdown = false,
+    accessibilityLabel,
+}: {
+    label: string;
+    on: boolean;
+    onPress?: () => void;
+    dropdown?: boolean;
+    accessibilityLabel?: string;
+}) {
+    const theme = useTheme();
+
+    const content = (
+        <>
+            <ThemedText type="small" themeColor={on ? 'text' : 'textSecondary'} style={on && styles.chipOn}>
+                {label}
+            </ThemedText>
+            {dropdown && <Chevron direction="down" size={6} />}
+        </>
+    );
+
+    const chipStyle = [
+        styles.chip,
+        dropdown && styles.chipDropdown,
+        { backgroundColor: theme.background, borderColor: on ? theme.text : theme.separator },
+    ];
+
+    if (!onPress) return <View style={chipStyle}>{content}</View>;
+
+    return (
+        <Pressable
+            onPress={onPress}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={accessibilityLabel ?? label}
+            style={({ pressed }) => [chipStyle, pressed && styles.pressed]}>
+            {content}
+        </Pressable>
     );
 }
 
@@ -101,6 +156,13 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
+    },
+    chipDropdown: {
+        paddingRight: Spacing.two,
+        gap: Spacing.one,
+    },
+    chipOn: {
+        fontWeight: '600',
     },
     dot: {
         width: 10,

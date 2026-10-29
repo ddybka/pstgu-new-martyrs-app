@@ -1,13 +1,17 @@
-import { SymbolView } from 'expo-symbols';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { KIND_COLORS, POINT_KINDS, kindColor, type MartyrPoint } from './map-config';
+import type { MartyrPoint } from './map-config';
+import { KIND_COLORS, POINT_KINDS, kindColor } from './map-kinds';
 
+import { Icon } from '@/components/ui/icon';
+import { PersonRankLine } from '@/components/person-rank-line';
 import { ThemedText } from '@/components/themed-text';
+import { useNameOrder } from '@/context/name-order';
 import { ButtonRadius, HeadingFonts, Spacing, SurfaceRadius, SurfaceShadow } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { compareDisplayedNames, splitPersonTitle } from '@/utils/person-name';
 import { plural } from '@/utils/plural';
 
 /** С этого числа людей в списке появляется поиск по ФИО. */
@@ -34,7 +38,7 @@ function groupByPerson(events: readonly MartyrPoint[]): PersonEvents[] {
         else groups.set(event.number, { number: event.number, title: event.title, events: [event] });
     }
 
-    return [...groups.values()].sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+    return [...groups.values()];
 }
 
 const KIND_LABELS: Record<string, string> = Object.fromEntries(
@@ -57,30 +61,52 @@ export function EventsPanel({
     onClose,
     onOpenPerson,
     style,
+    found = false,
 }: {
     events: readonly MartyrPoint[];
     onClose: () => void;
     onOpenPerson: (number: number, eventIds: number[]) => void;
     style?: StyleProp<ViewStyle>;
+    /**
+     * Это выдача поиска по карте: в заголовке «Найдено», а своего поиска по
+     * ФИО нет — запрос уже вводят над картой.
+     */
+    found?: boolean;
 }) {
     const theme = useTheme();
     const colors = KIND_COLORS[useColorScheme()];
     const [query, setQuery] = useState('');
+    const { order } = useNameOrder();
 
-    const groups = useMemo(() => groupByPerson(events), [events]);
+    // Заголовок — в том же порядке ФИО, что и во всём приложении; ищется и
+    // по нему, и по исходному, справочному.
+    const groups = useMemo(
+        () =>
+            groupByPerson(events).map((group) => {
+                const { holiness, name } = splitPersonTitle(group.title, order);
+                return {
+                    ...group,
+                    title: name,
+                    holiness,
+                    haystack: `${name}\n${group.title}`.toLocaleLowerCase('ru'),
+                };
+            }).sort((a, b) => compareDisplayedNames(a.title, b.title)),
+        [events, order]
+    );
     const needle = query.trim().toLocaleLowerCase('ru');
     const shown = useMemo(
         () =>
             needle
-                ? groups.filter((group) => group.title.toLocaleLowerCase('ru').includes(needle))
+                ? groups.filter((group) => group.haystack.includes(needle))
                 : groups,
         [groups, needle]
     );
 
-    const summary =
+    const counted =
         groups.length === 1
             ? plural(events.length, 'событие', 'события', 'событий')
             : `${plural(events.length, 'событие', 'события', 'событий')} · ${plural(groups.length, 'человек', 'человека', 'человек')}`;
+    const summary = found ? `Найдено: ${counted}` : counted;
 
     return (
         <View
@@ -99,7 +125,7 @@ export function EventsPanel({
                     accessibilityRole="button"
                     accessibilityLabel="Закрыть"
                     style={({ pressed }) => pressed && styles.pressed}>
-                    <SymbolView
+                    <Icon
                         name={{ ios: 'xmark', android: 'close', web: 'close' }}
                         size={CLOSE_ICON_SIZE}
                         tintColor={theme.text}
@@ -108,7 +134,7 @@ export function EventsPanel({
                 </Pressable>
             </View>
 
-            {groups.length >= SEARCH_FROM && (
+            {!found && groups.length >= SEARCH_FROM && (
                 <TextInput
                     value={query}
                     onChangeText={setQuery}
@@ -120,51 +146,82 @@ export function EventsPanel({
                 />
             )}
 
+            {/* Строки тяжёлые (у человека бывают десятки событий), и
+                досоздаются они на главном потоке: пачками помельче и чаще, а
+                ушедшие с экрана отцепляются от иерархии — так прокрутка не
+                проседает ниже частоты экрана. */}
             <FlatList
                 data={shown}
                 keyExtractor={(group) => String(group.number)}
                 keyboardShouldPersistTaps="handled"
-                initialNumToRender={8}
-                windowSize={5}
+                initialNumToRender={6}
+                maxToRenderPerBatch={3}
+                updateCellsBatchingPeriod={30}
+                windowSize={7}
+                removeClippedSubviews
                 contentContainerStyle={styles.list}
-                ItemSeparatorComponent={() => (
-                    <View style={[styles.separator, { backgroundColor: theme.separator }]} />
-                )}
+                ItemSeparatorComponent={Separator}
                 ListEmptyComponent={
                     <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                        Никого не нашлось
+                        Ничего не нашлось
                     </ThemedText>
                 }
-                renderItem={({ item }) => (
-                    <Pressable
-                        onPress={() => onOpenPerson(item.number, item.events.map((event) => event.id))}
-                        accessibilityRole="link"
-                        accessibilityLabel={`Открыть биографию: ${item.title}`}
-                        style={({ pressed, hovered }) => [
-                            styles.group,
-                            (pressed || hovered) && { backgroundColor: theme.backgroundElement },
-                        ]}>
-                        <ThemedText style={styles.title}>{item.title}</ThemedText>
-
-                        <View style={styles.events}>
-                            {item.events.map((event) => (
-                                <View key={event.id} style={styles.event}>
-                                    <View style={styles.meta}>
-                                        <View style={[styles.dot, { backgroundColor: kindColor(colors, event.kind) }]} />
-                                        <ThemedText type="small" themeColor="textSecondary">
-                                            {[KIND_LABELS[event.kind] ?? event.kind, event.dating].filter(Boolean).join(' · ')}
-                                        </ThemedText>
-                                    </View>
-                                    {event.text !== '' && <ThemedText style={styles.text}>{event.text}</ThemedText>}
-                                </View>
-                            ))}
-                        </View>
-                    </Pressable>
-                )}
+                renderItem={({ item }) => <GroupRow group={item} colors={colors} onOpenPerson={onOpenPerson} />}
             />
         </View>
     );
 }
+
+function Separator() {
+    const theme = useTheme();
+    return <View style={[styles.separator, { backgroundColor: theme.separator }]} />;
+}
+
+type ShownGroup = PersonEvents & { holiness: string | null };
+
+/**
+ * Строка человека. Мемоизирована: поиск по ФИО и обновления шторки не
+ * перерисовывают уже показанные строки — только новые.
+ */
+const GroupRow = memo(function GroupRow({
+    group,
+    colors,
+    onOpenPerson,
+}: {
+    group: ShownGroup;
+    colors: (typeof KIND_COLORS)[keyof typeof KIND_COLORS];
+    onOpenPerson: (number: number, eventIds: number[]) => void;
+}) {
+    const theme = useTheme();
+
+    return (
+        <Pressable
+            onPress={() => onOpenPerson(group.number, group.events.map((event) => event.id))}
+            accessibilityRole="link"
+            accessibilityLabel={`Открыть биографию: ${group.title}`}
+            style={({ pressed, hovered }) => [
+                styles.group,
+                (pressed || hovered) && { backgroundColor: theme.backgroundElement },
+            ]}>
+            <PersonRankLine holiness={group.holiness} style={styles.holiness} />
+            <ThemedText style={styles.title}>{group.title}</ThemedText>
+
+            <View style={styles.events}>
+                {group.events.map((event) => (
+                    <View key={event.id} style={styles.event}>
+                        <View style={styles.meta}>
+                            <View style={[styles.dot, { backgroundColor: kindColor(colors, event.kind) }]} />
+                            <ThemedText type="small" themeColor="textSecondary">
+                                {[KIND_LABELS[event.kind] ?? event.kind, event.dating].filter(Boolean).join(' · ')}
+                            </ThemedText>
+                        </View>
+                        {event.text !== '' && <ThemedText style={styles.text}>{event.text}</ThemedText>}
+                    </View>
+                ))}
+            </View>
+        </Pressable>
+    );
+});
 
 const styles = StyleSheet.create({
     panel: {
@@ -204,6 +261,12 @@ const styles = StyleSheet.create({
     group: {
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.three,
+    },
+    holiness: {
+        fontSize: 14,
+        lineHeight: 18,
+        fontWeight: '400',
+        marginBottom: Spacing.half,
     },
     title: {
         marginBottom: Spacing.two,
