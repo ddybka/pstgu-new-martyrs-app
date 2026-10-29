@@ -11,6 +11,34 @@ import { usePersons } from '@/hooks/use-persons';
 import { useToday } from '@/hooks/use-today';
 import Constants from 'expo-constants';
 
+import type { Metadata } from 'expo-router/server';
+import { SITE_URL } from '@/constants/site';
+
+export function generateMetadata(): Metadata {
+    const title = 'Память новомучеников на текущую дату и день.';
+    const description = 'Узнайте о новомучениках и исповедниках Церкви Русской. Изучайте дни памяти, биографии и места, связанные с их жизнью.';
+
+    const url = `${SITE_URL}/`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 export default function HomeScreen() {
     const { persons, total, hasNext, loading, refreshing, error, stale, updatedAt, refresh } = usePersons();
     const today = useToday();

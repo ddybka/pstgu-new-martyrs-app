@@ -14,6 +14,34 @@ import { ListButton } from '@/components/list-button';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
 
+import { Metadata } from 'expo-router/server';
+import { SITE_URL } from '@/constants/site';
+
+export function generateMetadata(): Metadata {
+    const title = 'Память новомучеников на каждый день календаря.';
+    const description = 'Посмотрите биографию, дни памяти, места связанные с жизнью новомучеников на любую дату календаря.';
+
+    const url = `${SITE_URL}/calendar`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 const STORAGE_KEY = 'calendar-selected-date';
 
 function parseStored(raw: string | null): CalendarDate | null {

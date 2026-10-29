@@ -35,6 +35,105 @@ import { useNameOrder } from "@/context/name-order";
 import { shareLink } from "@/utils/share-link";
 import { personUrl } from "@/constants/site";
 
+import type { Metadata } from "expo-router/server";
+import { SITE_URL } from "@/constants/site";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+type PersonIndexEntry = [
+    number,
+    string,
+    string,
+    number,
+    number,
+];
+
+type PersonsIndex = {
+    persons: PersonIndexEntry[];
+};
+
+async function loadPersonsIndex(): Promise<PersonsIndex> {
+    const filePath = path.join(
+        process.cwd(),
+        "src",
+        "data",
+        "persons-index.json"
+    );
+
+    const content = await readFile(filePath, "utf8");
+
+    return JSON.parse(content) as PersonsIndex;
+}
+
+export async function generateStaticParams(): Promise<
+    { id: string }[]
+> {
+    const { persons } = await loadPersonsIndex();
+
+    return persons.slice(0, 100).map(([number]) => ({
+        id: String(number),
+    }));
+}
+
+export async function generateMetadata(
+    _request: undefined,
+    params: { id: string }
+): Promise<Metadata> {
+    const { persons } = await loadPersonsIndex();
+
+    const number = Number(params.id);
+    const person = persons.find(([id]) => id === number);
+
+    if (!person) {
+        return {
+            title: "Новомученик не найден",
+            robots: {
+                index: false,
+                follow: false,
+            },
+        };
+    }
+
+    const [, name, rank, born, died] = person;
+
+    const years =
+        born && died
+            ? `${born}–${died}`
+            : born
+                ? `с ${born} года`
+                : died
+                    ? `до ${died} года`
+                    : "";
+
+    const title = `${name} — житие и биография`;
+    const description = [
+        name,
+        years,
+        rank,
+        "Биографические сведения и места, связанные с жизнью новомученика.",
+    ]
+        .filter(Boolean)
+        .join(". ");
+
+    const url = `${SITE_URL}/person/${number}`;
+
+    return {
+        title,
+        description,
+        alternates: {
+            canonical: url,
+        },
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: "Память новомучеников",
+            locale: "ru_RU",
+            type: "website",
+        },
+    };
+}
+
 function formatEventDate(date: string | null | undefined) {
     if (date == null) return 'Дата неизвестна';
     if (/^\d{4}$/.test(date.trim())) return `${date} г.`;

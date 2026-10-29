@@ -1,4 +1,3 @@
-import { ScrollViewStyleReset, useServerDocumentContext } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
 
 import { GLOBAL_CSS } from '@/constants/global-css';

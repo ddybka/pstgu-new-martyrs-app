@@ -20,6 +20,34 @@ import {
 import { photosSize } from '@/utils/offline-photos';
 import { plural } from '@/utils/plural';
 
+import { Metadata } from "expo-router/server";
+import { SITE_URL } from "@/constants/site";
+
+export function generateMetadata(): Metadata {
+    const title = 'Настройки и скачивание базы - Память новомучеников.';
+    const description = 'Настройте тему оформления и скачайте базу новомучеников для просмотра без интернета: выберите нужные месяцы и наличие фотографий.';
+
+    const url = `${SITE_URL}/settings`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 const THEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = [
     { value: 'system', label: 'Системная' },
     { value: 'light', label: 'Светлая' },

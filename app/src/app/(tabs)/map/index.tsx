@@ -24,6 +24,34 @@ import {
     type PeriodValue,
 } from '@/utils/map-search';
 
+import { Metadata } from 'expo-router/server';
+import { SITE_URL } from '@/constants/site';
+
+export function generateMetadata(): Metadata {
+    const title = 'Карта мест новомучеников.';
+    const description = 'Карта мест, связанных с новомучениками: события из их биографий на общей карте. Фильтруйте по типам событий и открывайте страницы новомучеников';
+
+    const url = `${SITE_URL}/map`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
 const MartyrsMap = lazy(() => import('@/components/map/martyrs-map'));
 
 const NO_KINDS: ReadonlySet<string> = new Set();

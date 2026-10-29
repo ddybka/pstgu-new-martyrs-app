@@ -7,6 +7,35 @@ import { Image } from "@/components/ui/image";
 import { router } from "expo-router";
 import { StyleSheet, View } from 'react-native';
 
+import type { Metadata } from 'expo-router/server';
+import { SITE_URL } from "@/constants/site";
+
+export function generateMetadata(): Metadata {
+    const title = 'О проекте - Память новомучеников';
+    const description = 'Узнайте о новомучениках и исповедниках Церкви Русской, биографические сведения и карте мест, связанных с их жизнью.';
+
+    const url = `${SITE_URL}/about`;
+
+    return {
+        title,
+        description,
+
+        alternates: {
+            canonical: url,
+        },
+
+        openGraph: {
+            title,
+            description,
+            url,
+            siteName: 'Память новомучеников',
+            locale: 'ru_RU',
+            type: 'website',
+        },
+    };
+}
+
+
 export default function AboutScreen() {
     const theme = useTheme();
 
