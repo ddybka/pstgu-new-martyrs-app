@@ -43,6 +43,7 @@ function RootNavigator() {
     const helpOptions = useDetailHeaderOptions('Помочь проекту');
     const SettingsOptions = useDetailHeaderOptions('Настройки');
     const privacyOptions = useDetailHeaderOptions('Политика конфиденциальности');
+    const supportOptions = useDetailHeaderOptions('Поддержка');
 
     const [fontsLoaded, fontsError] = useFonts(FONT_SOURCES);
 
@@ -96,6 +97,10 @@ function RootNavigator() {
                     <Stack.Screen
                         name="privacy"
                         options={{ ...privacyOptions, headerLeft: webBackButton }}
+                    />
+                    <Stack.Screen
+                        name="support"
+                        options={{ ...supportOptions, headerLeft: webBackButton }}
                     />
                 </Stack>
             </LoginProvider>

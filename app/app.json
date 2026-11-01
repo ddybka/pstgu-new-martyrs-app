@@ -1,78 +1,79 @@
 {
-    "expo": {
-        "name": "Память",
-        "slug": "pamyat-novomuchenikov",
-        "version": "1.0.0",
-        "orientation": "default",
-        "icon": "./assets/images/icon.png",
-        "scheme": "app",
-        "userInterfaceStyle": "automatic",
-        "splash": {
-            "image": "./assets/images/splash-icon.png",
-            "resizeMode": "contain",
-            "backgroundColor": "#1C1C1C"
-        },
-        "ios": {
-            "supportsTablet": true,
-            "icon": {
-                "light": "./assets/images/icon.png",
-                "dark": "./assets/images/icon-ios-dark.png",
-                "tinted": "./assets/images/icon-ios-tinted.png"
-            },
-            "bundleIdentifier": "com.dybka.pamyat-novomuchenikov",
-            "infoPlist": {
-                "CADisableMinimumFrameDurationOnPhone": true
-            }
-        },
-        "android": {
-            "adaptiveIcon": {
-                "backgroundColor": "#242424",
-                "foregroundImage": "./assets/images/android-icon-foreground.png",
-                "monochromeImage": "./assets/images/android-icon-monochrome.png"
-            },
-            "predictiveBackGestureEnabled": false,
-            "package": "com.dybka.pamyat_novomuchenikov"
-        },
-        "web": {
-            "output": "static",
-            "favicon": "./assets/images/favicon.png"
-        },
-        "plugins": [
-            "expo-router",
-            [
-                "expo-splash-screen",
-                {
-                    "backgroundColor": "#1C1C1C",
-                    "image": "./assets/images/splash-icon.png",
-                    "imageWidth": 120,
-                    "dark": {
-                        "backgroundColor": "#1C1C1C",
-                        "image": "./assets/images/splash-icon.png"
-                    }
-                }
-            ],
-            "expo-secure-store",
-            "@maplibre/maplibre-react-native",
-            [
-                "./plugins/with-cleartext-domain",
-                {
-                    "domains": [
-                        "api.nmbook.ru",
-                        "map.nmbook.ru",
-                        "img.nmbook.ru"
-                    ]
-                }
-            ]
-        ],
-        "experiments": {
-            "typedRoutes": true,
-            "reactCompiler": true
-        },
-        "extra": {
-            "router": {},
-            "eas": {
-                "projectId": "55b84403-c17c-43c0-a508-7f9891ebb7b4"
-            }
+  "expo": {
+    "name": "Память",
+    "slug": "pamyat-novomuchenikov",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/images/icon.png",
+    "scheme": "app",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1C1C1C"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/icon-ios-dark.png",
+        "tinted": "./assets/images/icon-ios-tinted.png"
+      },
+      "bundleIdentifier": "com.dybka.pamyat-novomuchenikov",
+      "infoPlist": {
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#242424",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.dybka.pamyat_novomuchenikov"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1C1C1C",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120,
+          "dark": {
+            "backgroundColor": "#1C1C1C",
+            "image": "./assets/images/splash-icon.png"
+          }
         }
+      ],
+      "expo-secure-store",
+      "@maplibre/maplibre-react-native",
+      [
+        "./plugins/with-cleartext-domain",
+        {
+          "domains": [
+            "api.nmbook.ru",
+            "map.nmbook.ru",
+            "img.nmbook.ru"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "55b84403-c17c-43c0-a508-7f9891ebb7b4"
+      }
     }
+  }
 }
