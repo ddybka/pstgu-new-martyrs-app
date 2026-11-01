@@ -24,7 +24,7 @@ import { Metadata } from "expo-router/server";
 import { SITE_URL } from "@/constants/site";
 
 export function generateMetadata(): Metadata {
-    const title = 'Настройки и скачивание базы - Память новомучеников.';
+    const title = 'Настройки - Память новомучеников.';
     const description = 'Настройте тему оформления и скачайте базу новомучеников для просмотра без интернета: выберите нужные месяцы и наличие фотографий.';
 
     const url = `${SITE_URL}/settings`;

@@ -18,7 +18,7 @@ import { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
 
 export function generateMetadata(): Metadata {
-    const title = 'Память новомучеников на каждый день календаря.';
+    const title = 'Календарь памяти — Память новомучеников';
     const description = 'Посмотрите биографию, дни памяти, места связанные с жизнью новомучеников на любую дату календаря.';
 
     const url = `${SITE_URL}/calendar`;

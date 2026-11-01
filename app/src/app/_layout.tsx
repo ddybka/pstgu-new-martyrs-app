@@ -18,10 +18,6 @@ import { preloadMap } from '@/utils/preload-map';
 
 SplashScreen.preventAutoHideAsync();
 
-/**
- * Через сколько после запуска готовить карту. Не сразу: первым должен
- * отрисоваться список дня, а разбор восьми тысяч точек занимает JS-поток.
- */
 const MAP_PRELOAD_DELAY_MS = 1500;
 
 const webBackButton = Platform.OS === 'web' ? () => <BackButton /> : undefined;
@@ -46,14 +42,10 @@ function RootNavigator() {
     const aboutOptions = useDetailHeaderOptions('О проекте');
     const helpOptions = useDetailHeaderOptions('Помочь проекту');
     const SettingsOptions = useDetailHeaderOptions('Настройки');
+    const privacyOptions = useDetailHeaderOptions('Политика конфиденциальности');
 
-    // На телефоне — файлы из assets/fonts; в вебе список пуст, и отрисовка
-    // шрифт не ждёт: он подключён через @font-face со swap (см. global.css).
     const [fontsLoaded, fontsError] = useFonts(FONT_SOURCES);
 
-    // Карту готовим заранее: к моменту, когда откроют вкладку, точки уже
-    // разобраны, а стиль подложки лежит в памяти. В вебе — нет (см.
-    // preload-map.web): там это лишние мегабайты для тех, кто до карты не дойдёт.
     const isDark = colorScheme === 'dark';
     useEffect(() => {
         const timer = setTimeout(() => preloadMap(isDark), MAP_PRELOAD_DELAY_MS);
@@ -100,6 +92,10 @@ function RootNavigator() {
                     <Stack.Screen
                         name="settings"
                         options={{ ...SettingsOptions, headerLeft: webBackButton }}
+                    />
+                    <Stack.Screen
+                        name="privacy"
+                        options={{ ...privacyOptions, headerLeft: webBackButton }}
                     />
                 </Stack>
             </LoginProvider>

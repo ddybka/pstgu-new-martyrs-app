@@ -28,7 +28,7 @@ import { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
 
 export function generateMetadata(): Metadata {
-    const title = 'Карта мест новомучеников.';
+    const title = 'Карта мест — Память новомучеников';
     const description = 'Карта мест, связанных с новомучениками: события из их биографий на общей карте. Фильтруйте по типам событий и открывайте страницы новомучеников';
 
     const url = `${SITE_URL}/map`;

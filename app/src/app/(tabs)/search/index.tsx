@@ -14,7 +14,7 @@ import { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
 
 export function generateMetadata(): Metadata {
-    const title = 'Поиск новомучеников по ключевым словам из биографии.';
+    const title = 'Поиск по новомученикам — Память новомучеников';
     const description = 'Ищите новомучеников по ключевым словам: сан, имя, фамилия, отчество, годы жизни.';
 
     const url = `${SITE_URL}/search`;

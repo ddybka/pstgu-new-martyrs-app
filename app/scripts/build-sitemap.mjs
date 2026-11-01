@@ -1,54 +1,22 @@
-
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SITE_URL = 'https://fcsmap.nmbook.ru';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SITE_URL = 'https://map.dybka.ru';
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
-const PERSONS_INDEX_PATH = path.resolve(
-    __dirname,
-    '../src/data/persons-index.json'
-);
 
-const staticRoutes = [
+const routes = [
     '/',
     '/about',
     '/help',
     '/map',
     '/calendar',
     '/settings',
-    '/search'
+    '/search',
+    '/privacy',
 ];
 
-const rawPersons = await readFile(PERSONS_INDEX_PATH, 'utf8');
-const index = JSON.parse(rawPersons);
-const persons = index.persons;
-
-// проверка на массив
-if (!Array.isArray(persons)) {
-    throw new Error('persons-index.json должен содержать массив');
-}
-
-// Из каждой записи берём номер человека из первого элемента.
-// Отбрасываем некорректные номера и дубликаты.
-const personNumbers = [
-    ...new Set(
-        persons
-            .map((person) => Array.isArray(person) ? Number(person[0]) : NaN)
-            .filter((number) => Number.isSafeInteger(number) && number > 0)
-    ),
-];
-
-const personRoutes = personNumbers.map(
-    (number) => `/person/${number}`
-);
-
-const routes = [...staticRoutes, ...personRoutes];
-
-// XML-экранирование на случай, если список маршрутов расширится.
 function escapeXml(value) {
     return String(value)
         .replaceAll('&', '&amp;')
@@ -59,13 +27,9 @@ function escapeXml(value) {
 }
 
 const urls = routes
-    .map((route) => {
-        const loc = escapeXml(`${SITE_URL}${route}`);
-
-        return `  <url>
-    <loc>${loc}</loc>
-  </url>`;
-    })
+    .map((route) => `  <url>
+    <loc>${escapeXml(new URL(route, SITE_URL).href)}</loc>
+    </url>`)
     .join('\n');
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -75,11 +39,8 @@ ${urls}
 `;
 
 await mkdir(PUBLIC_DIR, { recursive: true });
-
 const sitemapPath = path.join(PUBLIC_DIR, 'sitemap.xml');
 await writeFile(sitemapPath, xml, 'utf8');
 
 console.log(`Sitemap создан: ${sitemapPath}`);
-console.log(`Общих страниц: ${staticRoutes.length}`);
-console.log(`Страниц новомучеников: ${personRoutes.length}`);
-console.log(`Всего URL: ${routes.length}`);
+console.log(`URL: ${routes.length}; страниц новомучеников: 0`);

@@ -8,7 +8,7 @@ import {
 import path from "node:path";
 
 const ROOT = process.cwd();
-const SITE_URL = "https://fcsmap.nmbook.ru";
+const SITE_URL = "https://map.dybka.ru";
 const DIST_DIR = path.join(ROOT, "dist");
 const PERSON_DIR = path.join(DIST_DIR, "person");
 const DATA_DIR = path.join(ROOT, "src", "data", "persons-full");

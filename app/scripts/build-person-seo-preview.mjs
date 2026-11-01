@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-const SITE_URL = "https://fcsmap.nmbook.ru";
+const SITE_URL = "https://map.dybka.ru";
 const PERSON_NUMBER = 1;
 
 const DATA_DIR = path.join(
