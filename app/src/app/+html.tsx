@@ -31,10 +31,12 @@ export default function Root({ children }: PropsWithChildren) {
                 <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
                 <ScrollViewStyleReset />
                 {headNodes}
+                <meta name="author" content="Даниил Дыбка" />
             </head>
             <body {...bodyAttributes}>
                 {children}
                 {bodyNodes}
+                <div style={{ display: 'none' }}>Автор проекта: Дыбка Даниил Викторович, daniil@dybka.ru</div>
             </body>
         </html>
     );

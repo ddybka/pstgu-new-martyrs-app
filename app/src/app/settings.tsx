@@ -66,7 +66,6 @@ const MONTH_NAMES = [
 const TEXT_MB_PER_PERSON = 15 / 1024;
 const PHOTOS_MB_PER_PERSON = (0.4 * 70) / 1024;
 
-/** Сколько дел в каждом месяце — по одному короткому запросу на месяц. */
 async function fetchMonthCounts(): Promise<number[]> {
     return Promise.all(
         MONTH_NAMES.map(async (_, index) => {
@@ -87,8 +86,6 @@ export default function SettingsScreen() {
         <InfoPage>
             <ThemeSection />
             <NameOrderSection />
-            {/* В вебе скачивания нет: localStorage вмещает около 5 МБ, а без
-                сети сайт и не откроется — для этого нужен service worker. */}
             {Platform.OS !== 'web' && <DownloadSection />}
         </InfoPage>
     );
@@ -356,11 +353,9 @@ function formatSize(megabytes: number) {
     return `около ${megabytes.toFixed(1).replace('.', ',')} МБ`;
 }
 
-// Отступы крупнее, чем на текстовых страницах, — как между блоками на
-// странице новомученика: настройки читаются блоками, а не сплошным текстом.
 const styles = StyleSheet.create({
     section: {
-        marginTop: Spacing.six,
+        marginTop: Spacing.five,
         gap: Spacing.three,
     },
     segments: {
