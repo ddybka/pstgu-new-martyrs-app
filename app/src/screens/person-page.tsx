@@ -1,5 +1,9 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
+import type { Metadata } from "expo-router/server";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,7 +37,7 @@ import { findMatches, pageNeedle } from "@/utils/text-search";
 import { useNameOrder } from "@/context/name-order";
 
 import { shareLink } from "@/utils/share-link";
-import { personUrl } from "@/constants/site";
+import { personUrl, SITE_URL } from "@/constants/site";
 
 type PersonIndexEntry = [
     number,

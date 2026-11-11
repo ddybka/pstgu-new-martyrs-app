@@ -41,6 +41,7 @@ function RootNavigator() {
     const personOptions = useDetailHeaderOptions();
     const aboutOptions = useDetailHeaderOptions('О проекте');
     const helpOptions = useDetailHeaderOptions('Помочь проекту');
+    const appsOptions = useDetailHeaderOptions('Приложения');
     const SettingsOptions = useDetailHeaderOptions('Настройки');
     const privacyOptions = useDetailHeaderOptions('Политика конфиденциальности');
     const supportOptions = useDetailHeaderOptions('Поддержка');
@@ -89,6 +90,10 @@ function RootNavigator() {
                     <Stack.Screen
                         name="help"
                         options={{ ...helpOptions, headerLeft: webBackButton }}
+                    />
+                    <Stack.Screen
+                        name="apps"
+                        options={{ ...appsOptions, headerLeft: webBackButton }}
                     />
                     <Stack.Screen
                         name="settings"

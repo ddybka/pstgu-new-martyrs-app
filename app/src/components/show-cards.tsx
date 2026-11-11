@@ -1,6 +1,7 @@
 import { useMemo, type ReactElement } from "react";
-import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { FlatList, Platform, RefreshControl, StyleSheet } from "react-native";
 
+import { ErrorContent } from "./block-error";
 import { OfflineNotice } from "./offline-notice";
 import { PersonCard } from "./person-card";
 import { PersonCardsSkeleton } from "./person-card-skeleton";
@@ -10,7 +11,6 @@ import { MaxContentWidth, Spacing, WebHeaderInset } from "@/constants/theme";
 import { useNameOrder } from "@/context/name-order";
 import { Person } from "@/hooks/use-persons";
 import { useTheme } from "@/hooks/use-theme";
-import { describeError } from "@/utils/api-fetch";
 import { compareDisplayedNames, formatPersonName } from "@/utils/person-name";
 
 /**
@@ -41,8 +41,8 @@ export function ShowCards({
     error,
 }: {
     persons: Person[];
-    header?: ReactElement;
-    footer?: ReactElement;
+    header?: ReactElement | null;
+    footer?: ReactElement | null;
     loading?: boolean;
     /** Первая страница на экране, остальные ещё грузятся. */
     loadingMore?: boolean;
@@ -100,7 +100,7 @@ export function ShowCards({
             updateCellsBatchingPeriod={80}
             windowSize={WINDOW_SIZE}
             ListHeaderComponent={listHeader}
-            ListFooterComponent={listFooter}
+            ListFooterComponent={listFooter ?? undefined}
             renderItem={({ item }) => (
                 <PersonCard person={item} />
             )}
@@ -108,16 +108,7 @@ export function ShowCards({
                 loading ? (
                     <PersonCardsSkeleton />
                 ) : error ? (
-                    <View style={styles.empty}>
-                        <ThemedText type="small" themeColor="textSecondary" style={styles.errorText}>
-                            {describeError(error)}
-                        </ThemedText>
-                        {onRefresh && (
-                            <Pressable onPress={onRefresh} hitSlop={Spacing.two} accessibilityRole="button">
-                                <ThemedText type="linkPrimary">Повторить</ThemedText>
-                            </Pressable>
-                        )}
-                    </View>
+                    <ErrorContent error={error} onRetry={onRefresh} style={styles.errorCard} />
                 ) : (
                     <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
                         {emptyText}
@@ -155,16 +146,12 @@ const styles = StyleSheet.create({
         width: '100%',
         alignSelf: 'center',
     },
-    empty: {
-        alignItems: 'center',
-        gap: Spacing.two,
-        paddingVertical: Spacing.five,
-    },
     emptyText: {
         textAlign: 'center',
         paddingVertical: Spacing.five,
     },
-    errorText: {
-        textAlign: 'center',
+    errorCard: {
+        marginHorizontal: Spacing.three,
+        marginVertical: Spacing.four,
     },
 });

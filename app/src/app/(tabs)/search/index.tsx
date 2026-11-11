@@ -2,12 +2,12 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { ErrorContent } from '@/components/block-error';
 import { SearchResult } from '@/components/search-result';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing, WebHeaderInset } from '@/constants/theme';
 import { usePersonSearch } from '@/hooks/use-person-search';
 import { useTheme } from '@/hooks/use-theme';
-import { describeError } from '@/utils/api-fetch';
 import { plural } from '@/utils/plural';
 
 import { Metadata } from 'expo-router/server';
@@ -90,14 +90,7 @@ export default function SearchScreen() {
     ) : search.loading ? (
         <ActivityIndicator style={styles.spinner} />
     ) : search.error ? (
-        <View style={styles.hint}>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.hintText}>
-                {describeError(search.error)}
-            </ThemedText>
-            <Pressable onPress={search.retry} hitSlop={Spacing.two} accessibilityRole="button">
-                <ThemedText type="linkPrimary">Повторить</ThemedText>
-            </Pressable>
-        </View>
+        <ErrorContent error={search.error} onRetry={search.retry} style={styles.errorCard} />
     ) : (
         <ThemedText type="small" themeColor="textSecondary" style={[styles.hint, styles.hintText]}>
             Ничего не найдено
@@ -188,6 +181,10 @@ const styles = StyleSheet.create({
         gap: Spacing.two,
         paddingHorizontal: Spacing.four,
         paddingVertical: Spacing.five,
+    },
+    errorCard: {
+        marginHorizontal: Spacing.three,
+        marginVertical: Spacing.four,
     },
     hintText: {
 

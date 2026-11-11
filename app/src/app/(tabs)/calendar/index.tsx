@@ -12,7 +12,6 @@ import { useToday } from '@/hooks/use-today';
 import { readStored, writeStored } from '@/utils/storage';
 import { ListButton } from '@/components/list-button';
 import { router } from 'expo-router';
-import Constants from 'expo-constants';
 
 import { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
@@ -107,9 +106,13 @@ function CalendarContent({ today }: { today: Date }) {
             <MonthCalendar key={calendarKey} value={selected} onChange={select} />
 
             <View style={styles.titleRow}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.dateTitle}>
-                    {formatMartyrsCount(total, `${selected.day} ${MONTHS_FOR_DATE[selected.month - 1].toLowerCase()}`)}
-                </ThemedText>
+                {error ? (
+                    <View style={styles.titleSpacer} />
+                ) : (
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.dateTitle}>
+                        {formatMartyrsCount(total, `${selected.day} ${MONTHS_FOR_DATE[selected.month - 1].toLowerCase()}`)}
+                    </ThemedText>
+                )}
                 <TabHeaderMenu />
             </View>
         </View>
@@ -119,14 +122,8 @@ function CalendarContent({ today }: { today: Date }) {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
+            <ListButton label="Мобильные приложения" onPress={() => router.push('/apps')} />
             <ListButton label="Настройки" onPress={() => router.push('/settings')} />
-            <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                style={styles.version}
-            >
-                v{Constants.expoConfig?.version ?? '0.0.0'}
-            </ThemedText>
         </View>
     );
 
@@ -163,13 +160,12 @@ const styles = StyleSheet.create({
         fontSize: 17,
         lineHeight: 22,
     },
+    titleSpacer: {
+        flex: 1,
+    },
     footer: {
         width: '100%',
         paddingTop: Spacing.five,
-    },
-    version: {
-        paddingTop: Spacing.five,
-        textAlign: 'center',
     },
 });
 

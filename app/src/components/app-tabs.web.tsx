@@ -6,7 +6,7 @@ import {
     TabTriggerSlotProps,
     TabListProps,
 } from 'expo-router/ui';
-import { router, usePathname } from 'expo-router';
+import { router, usePathname, type Href } from 'expo-router';
 import { Image } from '@/components/ui/image';
 import { createContext, useContext, useState, type ComponentRef, type Ref } from 'react';
 import { Pressable, View, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
@@ -21,23 +21,15 @@ import { ButtonRadius, Colors, SurfaceRadius, HeadingFonts, MaxContentWidth, Spa
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
-/** Ширина, ниже которой вкладки не помещаются рядом с названием проекта. */
 const COMPACT_WIDTH = 768;
 const MENU_DURATION = 220;
 
-/**
- * Высота кнопок-плашек в шапке («⋯», меню): строка текста `small` (20) плюс
- * вертикальные отступы — как у кнопок вкладок и вида карточек.
- */
 const BUTTON_HEIGHT = 20 + Spacing.one * 2;
 const MENU_ICON_SIZE = 28;
 const MENU_BUTTON_SIZE = 44;
-/** Отступ снизу у раскрытой компактной шапки. */
 const OPEN_MENU_PADDING_BOTTOM = 22;
-/** Скругление шапки и её кнопок — едва заметное, не капсулы. */
 const HEADER_RADIUS = SurfaceRadius;
 const BUTTON_RADIUS = ButtonRadius;
-/** Иконка и название — одной высоты со строкой названия. */
 const BRAND_SIZE = 28;
 
 export default function AppTabs() {
@@ -64,29 +56,16 @@ export default function AppTabs() {
     );
 }
 
-/**
- * Признак «кнопка стоит в раскрытом меню, а не в строке шапки».
- *
- * Через контекст, а не пропсом: между списком и кнопкой лежит `TabTrigger`,
- * который подменяет своему потомку пропсы, и передать что-то мимо него нельзя.
- */
 const CompactMenu = createContext(false);
 
 export function TabButton({ children, isFocused, ref, ...props }: TabTriggerSlotProps) {
     const inMenu = useContext(CompactMenu);
 
     return (
-        // В expo-router ref описан как `Ref<View>`, а с RN 0.88 `View` —
-        // функциональный компонент, и его экземпляр — `ReactNativeElement`.
-        // Сам объект тот же, расходятся только типы.
         <Pressable {...props} ref={ref as Ref<ComponentRef<typeof Pressable>>} style={({ pressed }) => pressed && styles.pressed}>
-            {/* Активная вкладка — инверсная плашка, как выбранный день в
-                календаре: на фоне серых соседей её видно сразу. */}
             <ThemedView
                 type={isFocused ? 'text' : 'backgroundElement'}
                 style={[styles.tabButtonView, inMenu && styles.tabButtonInMenu]}>
-                {/* Начертание одно: жирная активная вкладка шире, и при
-                    переключении соседи сдвигались бы. */}
                 <ThemedText type="small" themeColor={isFocused ? 'background' : 'textSecondary'}>
                     {children}
                 </ThemedText>
@@ -95,10 +74,6 @@ export function TabButton({ children, isFocused, ref, ...props }: TabTriggerSlot
     );
 }
 
-/**
- * Кнопка меню компактной шапки: без плашки, просто крупная иконка
- * Material Symbols — «меню» или «закрыть».
- */
 function MenuButton({ open, onPress }: { open: boolean; onPress: () => void }) {
     const theme = useTheme();
 
@@ -122,17 +97,32 @@ function MenuButton({ open, onPress }: { open: boolean; onPress: () => void }) {
     );
 }
 
-const MORE_OPTIONS = TAB_HEADER_MENU_ITEMS.map((item) => ({ value: item.key, label: item.label }));
 const DOT_SIZE = 4;
+
+/**
+ * Пункт про приложения есть только в вебе: на телефоне приложение уже
+ * установлено, а на сайте это ссылка на RuStore, App Store и веб-версию.
+ */
+const APPS_ITEM = {
+    key: 'apps',
+    value: 'apps',
+    label: 'Приложения',
+    href: '/apps' as Href,
+};
+
+const MORE_MENU = [
+    ...TAB_HEADER_MENU_ITEMS.map((item) => ({ value: item.key, label: item.label, href: item.href })),
+    APPS_ITEM,
+];
 
 function MoreButton() {
     const theme = useTheme();
 
     return (
         <Dropdown
-            options={MORE_OPTIONS}
+            options={MORE_MENU}
             onSelect={(key) => {
-                const item = TAB_HEADER_MENU_ITEMS.find((it) => it.key === key);
+                const item = MORE_MENU.find((it) => it.value === key);
                 if (item) router.push(item.href);
             }}
             align="right"
@@ -153,14 +143,12 @@ export function CustomTabList(props: TabListProps) {
     const compact = width <= COMPACT_WIDTH;
     const [open, setOpen] = useState(false);
 
-    // Меню закрывается вместе с переходом на широкий экран.
     const [wasCompact, setWasCompact] = useState(compact);
     if (wasCompact !== compact) {
         setWasCompact(compact);
         setOpen(false);
     }
 
-    // Меню закрывается по факту перехода, а не по нажатию на пункт.
     const pathname = usePathname();
     const [lastPath, setLastPath] = useState(pathname);
     if (lastPath !== pathname) {
@@ -170,9 +158,6 @@ export function CustomTabList(props: TabListProps) {
 
     return (
         <View {...props} style={styles.tabListContainer}>
-            {/* Шапка лежит поверх ленты, а не над ней: лента проезжает под ней.
-                Отделяет её от ленты не обводка, а мягкая тень, а в тёмной теме,
-                где тени не видно, — фон чуть светлее страницы. */}
             <View
                 style={[
                     styles.innerContainer,
@@ -203,19 +188,18 @@ export function CustomTabList(props: TabListProps) {
                 {!compact && <MoreButton />}
 
                 {compact && open && (
-                    // Ссылки — те же самые TabTrigger, просто переложенные в
-                    // столбец, поэтому подсветка активной вкладки работает без
-                    // отдельной копии состояния.
-                    // Появляется CSS-анимацией, без reanimated: этот файл —
-                    // в коде каждой страницы сайта.
                     <View style={[styles.menu, styles.menuEnter]}>
                         <CompactMenu.Provider value>
                             {props.children}
+                            <hr style={{ width: '90%', flex: 1, border: 'none', borderWidth: '1px', borderColor: colors.separator, borderStyle: 'solid', }} />
                             {TAB_HEADER_MENU_ITEMS.map((item) => (
                                 <TabButton key={item.key} onPress={() => router.push(item.href)}>
                                     {item.label}
                                 </TabButton>
                             ))}
+                            <TabButton onPress={() => router.push(APPS_ITEM.href)}>
+                                {APPS_ITEM.label}
+                            </TabButton>
                         </CompactMenu.Provider>
                     </View>
                 )}
@@ -253,8 +237,6 @@ const styles = StyleSheet.create({
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
         overflow: 'hidden',
     },
-    // В компактном виде панель раскрывается вниз, поэтому строка с названием и
-    // список ссылок ложатся друг под друга.
     innerContainerCompact: {
         flexDirection: 'column',
         alignItems: 'stretch',
@@ -298,8 +280,6 @@ const styles = StyleSheet.create({
         height: DOT_SIZE,
         borderRadius: DOT_SIZE / 2,
     },
-    // Кнопка выше строки с названием, но шапку не раздвигает: лишнее уходит
-    // в отрицательные поля, а иконка остаётся у правого края шапки.
     iconButton: {
         width: MENU_BUTTON_SIZE,
         height: MENU_BUTTON_SIZE,

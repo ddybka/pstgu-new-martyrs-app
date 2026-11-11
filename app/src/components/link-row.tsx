@@ -2,17 +2,30 @@ import { Alert, Linking, Platform, Pressable, StyleSheet, View } from 'react-nat
 
 import { Icon } from '@/components/ui/icon';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { ButtonRadius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { openLink } from '@/utils/open-link';
 
 /**
- * Строка-ссылка во всю ширину страницы, с линиями сверху и снизу.
- * Отступ — у подписи внутри.
+ * Строка-ссылка. По умолчанию — во всю ширину страницы, с линиями сверху и
+ * снизу. `variant="button"` — такая же плашка, как кнопки «Помочь проекту» и
+ * «Настройки» внизу главной: так ссылки на приложения стоят подряд, а не
+ * разъезжаются на полэкрана.
  */
-export function LinkRow({ label, href, onPress }: { label: string; href?: string; onPress?: () => void }) {
+export function LinkRow({
+    label,
+    href,
+    onPress,
+    variant = 'row',
+}: {
+    label: string;
+    href?: string;
+    onPress?: () => void;
+    variant?: 'row' | 'button';
+}) {
     const theme = useTheme();
     const isMail = href?.startsWith('mailto:') ?? false;
+    const isButton = variant === 'button';
 
     const handlePress = href
         ? isMail
@@ -27,9 +40,14 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
             onPress={handlePress}
             style={({ pressed }) => [
                 styles.blockLink,
-                { borderColor: theme.separator, opacity: pressed ? 0.7 : 1 },
+                isButton && styles.blockButton,
+                {
+                    borderColor: theme.separator,
+                    backgroundColor: isButton ? theme.backgroundElement : 'transparent',
+                    opacity: pressed ? 0.7 : 1,
+                },
             ]}>
-            <View style={styles.link}>
+            <View style={[styles.link, isButton && styles.linkButton]}>
                 {href && isMail && (
                     <Icon
                         name={{ ios: 'envelope', android: 'mail', web: 'mail' }}
@@ -38,7 +56,7 @@ export function LinkRow({ label, href, onPress }: { label: string; href?: string
                         weight="medium"
                     />
                 )}
-                <ThemedText style={styles.linkText}>{label}</ThemedText>
+                <ThemedText style={[styles.linkText, isButton && styles.buttonText]}>{label}</ThemedText>
                 {href && !isMail && (
                     <Icon
                         name={{ ios: 'arrow.up.right.square', android: 'open_in_new', web: 'open_in_new' }}
@@ -82,6 +100,15 @@ const styles = StyleSheet.create({
         marginTop: Spacing.three,
         marginBottom: Spacing.five,
     },
+    blockButton: {
+        borderTopWidth: 0,
+        borderBottomWidth: 0,
+        borderRadius: ButtonRadius,
+        marginTop: 0,
+        marginBottom: Spacing.two,
+        marginHorizontal: Spacing.three,
+        overflow: 'hidden',
+    },
     link: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -90,11 +117,17 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.three,
         paddingHorizontal: Spacing.three,
     },
+    linkButton: {
+        paddingVertical: Spacing.three,
+    },
     linkText: {
         flexShrink: 1,
         textAlign: 'center',
         fontWeight: '500',
         fontSize: 17,
         lineHeight: 22,
+    },
+    buttonText: {
+        fontWeight: '600',
     },
 });

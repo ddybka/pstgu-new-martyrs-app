@@ -4,3 +4,4 @@ node_modules
 
 .expo
 app/src/data/persons-full/
+app/public/android.apk

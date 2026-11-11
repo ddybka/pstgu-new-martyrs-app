@@ -1,4 +1,3 @@
-import { BlockError } from '@/components/block-error';
 import { TabHeaderMenu } from '@/components/tab-header-menu';
 import { ListButton } from '@/components/list-button';
 import { ShowCards } from '@/components/show-cards';
@@ -43,11 +42,12 @@ export default function HomeScreen() {
     const { persons, total, hasNext, loading, refreshing, error, stale, updatedAt, refresh } = usePersons();
     const today = useToday();
 
-    if (error) {
-        return <BlockError error={error} onRetry={refresh} />;
-    }
-
-    const header = (
+    // Заголовок с числом новомучеников показываем только когда данные есть:
+    // при ошибке «Найдено 0» только путало бы. Сам список в этом случае
+    // рисует причину и «Повторить» (см. ShowCards), а подвал с кнопками
+    // остаётся на месте — «Помочь проекту», «Настройки» и остальные должны
+    // быть доступны и без связи с сервером.
+    const header = error ? null : (
         <View style={styles.header}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.date}>
                 {formatMartyrsCount(total, today)}
@@ -60,6 +60,7 @@ export default function HomeScreen() {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
+            <ListButton label="Мобильные приложения" onPress={() => router.push('/apps')} />
             <ListButton label="Настройки" onPress={() => router.push('/settings')} />
             <ThemedText
                 type="small"
@@ -80,6 +81,7 @@ export default function HomeScreen() {
             loadingMore={hasNext}
             refreshing={refreshing}
             onRefresh={refresh}
+            error={error}
             stale={stale}
             updatedAt={updatedAt}
             emptyText="В этот день памяти нет записей"

@@ -10,6 +10,7 @@ const routes = [
     '/',
     '/about',
     '/help',
+    '/apps',
     '/map',
     '/calendar',
     '/settings',

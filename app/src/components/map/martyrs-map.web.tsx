@@ -166,7 +166,12 @@ export default function MartyrsMap({
             selectedRef.current
         );
 
-        map.on('styleimagemissing', ({ id }) => {
+        // Картинка кластера рисуется по требованию. Именно резолвер, а не
+        // событие `styleimagemissing`: MapLibre дожидается его ответа и только
+        // потом считает картинку отсутствующей. С событием часть картинок
+        // добавлялась уже после раскладки, и такие кластеры оставались
+        // ровными кругами без секторов.
+        map.setMissingStyleImageResolver((id) => {
             const pie = parsePieName(id);
             if (!pie || map.hasImage(id)) return;
 

@@ -64,7 +64,10 @@ export const SELECTED_LAYER_ID = 'martyrs-selected';
  */
 export const CLUSTER_OPTIONS = {
     cluster: true,
-    clusterRadius: 80,
+    // Радиус чуть больше прежнего (было 80): на обзорном масштабе точки
+    // собираются в кластеры охотнее, и карта не превращается в сплошное
+    // поле одиночных меток.
+    clusterRadius: 100,
     clusterMaxZoom: 12,
     // Сколько в кластере событий каждого типа — для секторов (см. cluster-pie).
     clusterProperties: CLUSTER_PROPERTIES,
