@@ -13,9 +13,9 @@ import { readStored, writeStored } from '@/utils/storage';
  */
 export type CalendarDatePreference = 'saved' | 'current';
 
-export const CALENDAR_DATE_PREFERENCES: { value: CalendarDatePreference; label: string }[] = [
-    { value: 'saved', label: 'Сохраненное значение' },
-    { value: 'current', label: 'Текущую дату' },
+export const CALENDAR_DATE_PREFERENCES: { value: CalendarDatePreference; label: string; desc: string }[] = [
+    { value: 'saved', label: 'Сохраненная', desc: 'По умолчанию в календаре будет показываться последняя выбранная дата.' },
+    { value: 'current', label: 'Текущая', desc: 'По умолчанию в календаре будет показываться сегодняшняя дата вместе с годом.' },
 ];
 
 const DEFAULT_PREFERENCE: CalendarDatePreference = 'saved';

@@ -84,19 +84,31 @@ const MONTH_NAMES = [
 const TEXT_MB_PER_PERSON = 15 / 1024;
 const PHOTOS_MB_PER_PERSON = (0.4 * 70) / 1024;
 
-async function fetchMonthCounts(): Promise<number[]> {
-    return Promise.all(
-        MONTH_NAMES.map(async (_, index) => {
-            const params = new URLSearchParams({
-                data_format: 'item',
-                fields: 'Заголовок',
-                filter: JSON.stringify({ 'death.month': index + 1 }),
-                take: '1',
-            });
-            const page = await apiFetch<{ total_docs_count: number }>(`public/dela?${params.toString()}`);
-            return page.total_docs_count;
-        })
-    );
+type DownloadCounts = {
+    /** Сколько дел с известной датой памяти в каждом месяце. */
+    months: number[];
+    /** Все дела в базе, включая записи без месяца кончины. */
+    total: number;
+};
+
+async function fetchDownloadCounts(): Promise<DownloadCounts> {
+    const [months, all] = await Promise.all([
+        Promise.all(
+            MONTH_NAMES.map(async (_, index) => {
+                const params = new URLSearchParams({
+                    data_format: 'item',
+                    fields: 'Заголовок',
+                    filter: JSON.stringify({ 'death.month': index + 1 }),
+                    take: '1',
+                });
+                const page = await apiFetch<{ total_docs_count: number }>(`public/dela?${params.toString()}`);
+                return page.total_docs_count;
+            })
+        ),
+        apiFetch<{ total_docs_count: number }>('public/dela?data_format=item&take=1'),
+    ]);
+
+    return { months, total: all.total_docs_count };
 }
 
 /**
@@ -140,12 +152,15 @@ function CalendarDateSection() {
     const { preference, setPreference } = useCalendarDatePreference();
 
     return (
-        <InfoSection title="Показывать в календаре" style={styles.section}>
+        <InfoSection title="Дата в календаре" style={styles.section}>
             <Segments
                 options={CALENDAR_DATE_PREFERENCES}
                 value={preference}
                 onChange={setPreference}
             />
+            <ThemedText themeColor="textSecondary" style={[styles.note, styles.inset]}>
+                {CALENDAR_DATE_PREFERENCES.find((option) => option.value === preference)?.desc}
+            </ThemedText>
         </InfoSection>
     );
 }
@@ -250,13 +265,19 @@ function DownloadSection() {
     const [withPhotos, setWithPhotos] = useState(false);
     const download = useDownloadState();
     const manifest = useManifest();
-    const { data: counts } = useApiResource<number[]>('downloads/month-counts', { fetcher: fetchMonthCounts });
+    const { data: counts } = useApiResource<DownloadCounts>('downloads/month-counts-v2', {
+        fetcher: fetchDownloadCounts,
+    });
 
     const running = download.status === 'running';
     const allSelected = selected.length === MONTH_NAMES.length;
-    const downloadedMonths = Object.keys(manifest).map(Number);
+    const downloadedMonths = Object.keys(manifest).map(Number).filter((month) => month > 0);
+    const downloadedAll = manifest[0] !== undefined;
     // Папка фотографий пересчитывается, когда меняются скачанные месяцы.
-    const savedPhotos = useMemo(() => (downloadedMonths.length > 0 ? photosSize() : 0), [manifest]); // eslint-disable-line react-hooks/exhaustive-deps
+    const savedPhotos = useMemo(
+        () => (downloadedMonths.length > 0 || downloadedAll ? photosSize() : 0),
+        [manifest] // eslint-disable-line react-hooks/exhaustive-deps
+    );
 
     const toggleMonth = (index: number) =>
         setSelected((current) =>
@@ -265,7 +286,10 @@ function DownloadSection() {
 
     const toggleAll = () => setSelected(allSelected ? [] : MONTH_NAMES.map((_, index) => index));
 
-    const persons = selected.reduce((sum, index) => sum + (counts?.[index] ?? 0), 0);
+    const monthPersons = selected.reduce((sum, index) => sum + (counts?.months[index] ?? 0), 0);
+    // Все двенадцать месяцев — это вся база: к делам с датой памяти
+    // добавляются записи без месяца кончины (см. `startDownload`).
+    const persons = allSelected ? (counts?.total ?? monthPersons) : monthPersons;
     const size = persons * (TEXT_MB_PER_PERSON + (withPhotos ? PHOTOS_MB_PER_PERSON : 0));
 
     const start = () => {
@@ -290,6 +314,11 @@ function DownloadSection() {
             <InfoParagraph>
                 Биографии сохранятся на устройстве и будут открываться без интернета, например в поездке.
             </InfoParagraph>
+            <ThemedText type="small" themeColor="textSecondary" style={[styles.note, styles.inset]}>
+                {allSelected
+                    ? 'Выбраны все месяцы — скачается вся база, включая записи без даты памяти.'
+                    : 'Месяцы скачивают только записи с известной датой памяти; остальные доступны онлайн.'}
+            </ThemedText>
 
             <View style={styles.monthsHeader}>
                 <PlateButton label={allSelected ? 'Снять все' : 'Выбрать все'} onPress={toggleAll} />
@@ -395,10 +424,12 @@ function DownloadSection() {
                 </Pressable>
             )}
 
-            {!running && downloadedMonths.length > 0 && (
+            {!running && (downloadedMonths.length > 0 || downloadedAll) && (
                 <View style={[styles.summary, styles.saved]}>
                     <ThemedText themeColor="textSecondary" style={[styles.note, styles.savedText]}>
-                        Загружен {plural(downloadedMonths.length, 'месяц', 'месяца', 'месяцев')}
+                        {downloadedAll
+                            ? 'Скачана вся база'
+                            : `Загружен ${plural(downloadedMonths.length, 'месяц', 'месяца', 'месяцев')}`}
                         {savedPhotos > 0 ? `, фотографии — ${formatSize(savedPhotos / 1024 / 1024)}` : ''}
                     </ThemedText>
                     <PlateButton label="Удалить" onPress={confirmClear} />
@@ -417,15 +448,17 @@ function DownloadProgressView({ state }: { state: Extract<ReturnType<typeof useD
             <View style={styles.progressHeader}>
                 <ActivityIndicator size="small" />
                 <ThemedText style={styles.optionText}>
-                    {MONTH_NAMES[state.month - 1]}
-                    {state.monthsTotal > 1 ? ` (${state.monthsDone + 1} из ${state.monthsTotal})` : ''}
+                    {state.month === 0 ? 'Вся база' : MONTH_NAMES[state.month - 1]}
+                    {state.month !== 0 && state.monthsTotal > 1
+                        ? ` (${state.monthsDone + 1} из ${state.monthsTotal})`
+                        : ''}
                 </ThemedText>
             </View>
             <View style={[styles.progressTrack, { backgroundColor: theme.backgroundElement }]}>
                 <View style={[styles.progressBar, { width: `${Math.round(share * 100)}%`, backgroundColor: theme.text }]} />
             </View>
             <ThemedText themeColor="textSecondary" style={styles.note}>
-                {state.stage}: {state.done} из {state.total}
+                {state.total > 0 ? `${state.stage}: ${state.done} из ${state.total}` : state.stage}
             </ThemedText>
         </View>
     );

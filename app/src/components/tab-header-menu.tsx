@@ -19,11 +19,13 @@ export function TabHeaderMenu() {
 
     return (
         <Stack.Toolbar placement="right">
+            {/* На телефоне одна кнопка вместо двух: сортировка сразу в меню,
+                вид карточек — вложенным подменю с собственным заголовком. */}
             <Stack.Toolbar.Menu
                 icon={isIos ? 'arrow.up.arrow.down' : require('@/assets/images/icons/sort.png')}
                 tintColor={theme.text}
                 title="Сортировка"
-                accessibilityLabel="Сортировка">
+                accessibilityLabel="Сортировка и вид карточек">
                 {PERSON_SORTS.map((option) => (
                     <Stack.Toolbar.MenuAction
                         key={option.value}
@@ -32,22 +34,18 @@ export function TabHeaderMenu() {
                         {!isIos && option.value === sort ? `✓  ${option.label}` : option.label}
                     </Stack.Toolbar.MenuAction>
                 ))}
-            </Stack.Toolbar.Menu>
 
-            <Stack.Toolbar.Menu
-                icon={isIos ? 'line.3.horizontal.decrease' : require('@/assets/images/icons/filter-list.png')}
-                tintColor={theme.text}
-                title="Вид карточек"
-                accessibilityLabel="Вид карточек">
-                {CARD_VIEWS.map((option) => (
-                    <Stack.Toolbar.MenuAction
-                        key={option.value}
-                        icon={isIos ? option.sfSymbol : undefined}
-                        isOn={option.value === view}
-                        onPress={() => setView(option.value)}>
-                        {!isIos && option.value === view ? `✓  ${option.label}` : option.label}
-                    </Stack.Toolbar.MenuAction>
-                ))}
+                <Stack.Toolbar.Menu title="Вид карточек" accessibilityLabel="Вид карточек">
+                    {CARD_VIEWS.map((option) => (
+                        <Stack.Toolbar.MenuAction
+                            key={option.value}
+                            icon={isIos ? option.sfSymbol : undefined}
+                            isOn={option.value === view}
+                            onPress={() => setView(option.value)}>
+                            {!isIos && option.value === view ? `✓  ${option.label}` : option.label}
+                        </Stack.Toolbar.MenuAction>
+                    ))}
+                </Stack.Toolbar.Menu>
             </Stack.Toolbar.Menu>
 
             <Stack.Toolbar.Menu

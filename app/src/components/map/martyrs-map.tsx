@@ -109,7 +109,11 @@ export default function MartyrsMap({
         const [[west, south], [east, north]] = focus.bounds;
 
         if (isSinglePoint(focus.bounds)) {
-            cameraRef.current?.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 1000 });
+            cameraRef.current?.flyTo({
+                center: focus.bounds[0],
+                zoom: focus.singleZoom ?? SINGLE_POINT_ZOOM,
+                duration: 1000,
+            });
         } else {
             // Для ссылки из биографии — симметричные поля (число), для поиска
             // — готовый объект под фильтры и шторку.

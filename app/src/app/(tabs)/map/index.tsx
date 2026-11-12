@@ -69,9 +69,13 @@ const FOCUS_PANEL_DELAY_MS = 1200;
 
 /**
  * Поля вокруг точек человека на общей карте. Симметричные — чтобы места
- * оказались ровно по центру экрана, как на мини-карте биографии.
+ * оказались ровно по центру экрана, как на мини-карте биографии, но уже:
+ * на общей карте нужен более сильный зум, чем на миниатюре.
  */
-const PERSON_FOCUS_PADDING = 72;
+const PERSON_FOCUS_PADDING = 40;
+
+/** Одна точка на общей карте — ближе, чем на мини-карте биографии. */
+const PERSON_FOCUS_SINGLE_ZOOM = 14;
 
 const SEARCH_HEIGHT = 40;
 
@@ -164,6 +168,7 @@ export default function MapScreen() {
         bounds: [[number, number], [number, number]];
         key: number;
         padding?: number;
+        singleZoom?: number;
     } | null>(null);
 
     // id точки — её позиция в снимке, и после фонового обновления точек
@@ -250,6 +255,7 @@ export default function MapScreen() {
                 bounds: focusBounds,
                 key: (current?.key ?? 0) + 1,
                 padding: PERSON_FOCUS_PADDING,
+                singleZoom: PERSON_FOCUS_SINGLE_ZOOM,
             }));
         });
 

@@ -95,7 +95,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
-        alignItems: 'center',
+        // Кнопки сортировки — по нижнему краю строки с «Найдено…», а не по верхнему.
+        alignItems: 'flex-end',
         flexWrap: 'wrap',
         rowGap: Spacing.two,
         paddingRight: Spacing.three,
@@ -135,7 +136,10 @@ function formatMartyrsCount(count: number, today: Date | null) {
     // Дата — словами, как в «Календаре»: «поминаемых 29 октября». Пока
     // веб-страница гидратируется, даты нет (см. useToday) — «сегодня».
     const date = today ? `${today.getDate()} ${MONTHS_FOR_DATE[today.getMonth()].toLowerCase()}` : 'сегодня';
-    const participle = lastDigit === 1 && lastTwoDigits !== 11 ? 'поминаемый' : 'поминаемых';
+    // «Найдены 31 новомученик, поминаемых…»: глагол и причастие — во
+    // множественном числе, единственное только для одной записи.
+    const found = count === 1 ? 'Найден' : 'Найдены';
+    const participle = count === 1 ? 'поминаемый' : 'поминаемых';
 
-    return `Найдено ${count} ${noun},\n${participle} ${date}`;
+    return `${found} ${count} ${noun},\n${participle} ${date}`;
 }

@@ -19,6 +19,8 @@ import { holinessOf, type Person } from "@/hooks/use-persons";
 import { capitalize, formatPersonHeading, formatPersonName } from "@/utils/person-name";
 import { router } from "expo-router";
 
+const COMPACT_PHOTO_SIZE = 48;
+
 export function PersonCard({
     person,
     view: viewOverride,
@@ -128,25 +130,34 @@ function CompactContent({ person, heading }: { person: Person; heading?: string 
 function DetailedContent({ person, heading }: { person: Person; heading?: string }) {
     const { layout } = usePhotoLayout();
     const compactPhoto = layout === 'compact';
+    // Место под снимок резервируем только если он действительно есть:
+    // у дел без фотографий имя не должно сужаться.
+    const showCompactPhoto = compactPhoto && Array.isArray(person.Фотографии) && person.Фотографии.length > 0;
 
     return (
         <>
             {!compactPhoto && <PersonPhotos photos={person.Фотографии} name={person.ФИО} />}
 
             {/* Сан здесь — в строке с годами, над именем только чин. */}
-            <View style={compactPhoto ? styles.headRow : undefined}>
-                <View style={compactPhoto ? styles.headText : undefined}>
-                    <PersonRankLine holiness={holinessOf(person)} style={styles.rank} />
-                    <ThemedText style={styles.title}>
-                        {heading ?? '—'}
-                    </ThemedText>
-                </View>
-                {compactPhoto && (
-                    <PersonThumbnail photos={person.Фотографии} name={person.ФИО} size={48} />
+            <View style={showCompactPhoto ? styles.headCompact : undefined}>
+                <PersonRankLine holiness={holinessOf(person)} style={styles.rank} />
+                <ThemedText style={styles.title}>
+                    {heading ?? '—'}
+                </ThemedText>
+                {showCompactPhoto && (
+                    // Абсолютно, а не второй колонкой: иначе высота снимка
+                    // растягивает строку имени и под ней появляется пустой отступ.
+                    <View style={styles.compactThumbnail}>
+                        <PersonThumbnail
+                            photos={person.Фотографии}
+                            name={person.ФИО}
+                            size={COMPACT_PHOTO_SIZE}
+                        />
+                    </View>
                 )}
             </View>
             {(person?.Рождение?.год || person?.Кончина?.год || person?.сан_церк_служение) && (
-                <ThemedText style={styles.subtitle}>
+                <ThemedText style={[styles.subtitle, showCompactPhoto && styles.subtitleCompact]}>
                     {person?.Рождение?.год ?? "..."}-{person?.Кончина?.год ?? "..."}
                     {person?.сан_церк_служение ? `, ${person?.сан_церк_служение}` : ''}
                 </ThemedText>
@@ -181,13 +192,15 @@ const styles = StyleSheet.create({
         flex: 0,
         borderTopWidth: 0,
     },
-    headRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: Spacing.three,
+    headCompact: {
+        position: 'relative',
+        // Место под абсолютный снимок, чтобы имя не заезжало под него.
+        paddingRight: COMPACT_PHOTO_SIZE + Spacing.three,
     },
-    headText: {
-        flex: 1,
+    compactThumbnail: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
     },
     title: {
         fontSize: 19,
@@ -208,6 +221,10 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.three,
         lineHeight: 21,
         opacity: .6
+    },
+    subtitleCompact: {
+        // Снимок чуть ниже имени и заходит на первую строку годов.
+        paddingRight: COMPACT_PHOTO_SIZE + Spacing.three,
     },
     textContainer: {
         display: 'flex',

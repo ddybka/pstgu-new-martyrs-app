@@ -77,6 +77,7 @@ const styles = StyleSheet.create({
         // Если кнопки всё же не поместились рядом с датой и уехали на новую
         // строку, прижимаем их к правому краю, а не к левому.
         marginLeft: 'auto',
+        paddingBottom: Spacing.three,
     },
     button: {
         flexDirection: 'row',

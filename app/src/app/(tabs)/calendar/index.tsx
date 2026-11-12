@@ -175,7 +175,8 @@ const styles = StyleSheet.create({
     },
     titleRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        // Кнопки сортировки — по нижнему краю строки с «Найдено…», а не по верхнему.
+        alignItems: 'flex-end',
         flexWrap: 'wrap',
         rowGap: Spacing.two,
         paddingRight: Spacing.three,
@@ -213,5 +214,7 @@ function formatMartyrsCount(count: number, date: string) {
                     ? 'новомученика'
                     : 'новомучеников';
 
-    return `Найдено ${count} ${noun},\n${singular ? 'поминаемый' : 'поминаемых'} ${date}`;
+    const found = count === 1 ? 'Найден' : 'Найдены';
+
+    return `${found} ${count} ${noun},\n${count === 1 ? 'поминаемый' : 'поминаемых'} ${date}`;
 }

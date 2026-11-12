@@ -1,13 +1,14 @@
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { Keyboard, Platform, Pressable, RefreshControl, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BlockError } from "@/components/block-error";
 import { BlockLoading } from "@/components/block-loading";
 import { FlashOverlay } from "@/components/flash-overlay";
 import { HighlightedText } from "@/components/highlighted-text";
+import { KIND_COLORS, POINT_KINDS, kindColor } from "@/components/map/map-kinds";
 import { ListButton } from "@/components/list-button";
 import { OfflineNotice } from "@/components/offline-notice";
 import { PageScrollView, usePageScrollRef } from "@/components/page-scroll-view";
@@ -19,21 +20,26 @@ import { PersonSources, sourceTexts } from "@/components/person-sources";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Chevron } from "@/components/ui/chevron";
-import { HeadingFonts, MaxContentWidth, Spacing, SurfaceShadow } from "@/constants/theme";
+import { ButtonRadius, HeadingFonts, MaxContentWidth, Spacing, SurfaceShadow } from "@/constants/theme";
 import { usePersonMapPoints } from "@/hooks/use-map-points";
 import { useIsClient } from "@/hooks/use-is-client";
 import { normalizePersonNumber, usePerson } from "@/hooks/use-person";
 import { holinessOf, type PersonEvent } from "@/hooks/use-persons";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useScrollTitle } from "@/hooks/use-scroll-title";
 import { useTheme } from "@/hooks/use-theme";
-import { matchEvents } from "@/utils/match-events";
-import { formatPersonHeading, formatPersonName } from "@/utils/person-name";
+import { matchEvent, matchEvents } from "@/utils/match-events";
+import { capitalize, formatPersonHeading, formatPersonName } from "@/utils/person-name";
 import { scrollBlockToTop } from "@/utils/scroll-block";
 import { findMatches, pageNeedle } from "@/utils/text-search";
 import { useNameOrder } from "@/context/name-order";
 
 import { shareLink } from "@/utils/share-link";
 import { personUrl } from "@/constants/site";
+
+const KIND_LABELS: Record<string, string> = Object.fromEntries(
+    POINT_KINDS.map(({ kind, label }) => [kind, label])
+);
 
 function formatEventDate(date: string | null | undefined) {
     if (date == null) return 'Дата неизвестна';
@@ -62,6 +68,30 @@ function matchOffsets(texts: readonly string[], needle: string, first: number) {
     return offsets;
 }
 
+/**
+ * Высота клавиатуры на iOS: поиск открывается в шапке, а счётчик совпадений
+ * живёт внизу — без подъёма клавиатура его закрывает и до стрелок не добраться.
+ */
+function useKeyboardHeight() {
+    const [height, setHeight] = useState(0);
+
+    useEffect(() => {
+        if (Platform.OS !== 'ios') return;
+
+        const show = Keyboard.addListener('keyboardWillShow', (event) => {
+            setHeight(event.endCoordinates.height);
+        });
+        const hide = Keyboard.addListener('keyboardWillHide', () => setHeight(0));
+
+        return () => {
+            show.remove();
+            hide.remove();
+        };
+    }, []);
+
+    return height;
+}
+
 function EventRow({
     event,
     flashKey,
@@ -70,6 +100,9 @@ function EventRow({
     needle,
     first,
     active,
+    category,
+    kind,
+    onShowOnMap,
 }: {
     event: PersonEvent;
     flashKey: number | null;
@@ -79,14 +112,29 @@ function EventRow({
     needle: string;
     first: number;
     active: number | null;
+    /** Категория события — только если у него есть точка на карте. */
+    category?: string;
+    /** Тип точки на карте — для цвета маркера у категории. */
+    kind?: string;
+    /** Открыть это событие на карте внизу страницы. */
+    onShowOnMap?: () => void;
 }) {
     const theme = useTheme();
+    const colors = KIND_COLORS[useColorScheme()];
     const [date, text, places] = eventTexts(event);
     const [dateFirst, textFirst, placesFirst] = matchOffsets([date, text, places], needle, first);
 
     return (
         <View ref={viewRef} style={[styles.event, styles.eventRow]} onLayout={onLayout}>
             <FlashOverlay flashKey={flashKey} color={theme.backgroundElement} />
+            {category && (
+                <View style={styles.eventCategoryRow}>
+                    <View style={[styles.eventCategoryDot, { backgroundColor: kindColor(colors, kind ?? '') }]} />
+                    <ThemedText type="smallBold" themeColor="textSecondary" style={styles.eventCategory}>
+                        {category}
+                    </ThemedText>
+                </View>
+            )}
             <HighlightedText type="smallBold" style={styles.eventDate} needle={needle} first={dateFirst} active={active}>
                 {date}
             </HighlightedText>
@@ -105,6 +153,20 @@ function EventRow({
                     active={active}>
                     {places}
                 </HighlightedText>
+            )}
+            {onShowOnMap && (
+                <Pressable
+                    onPress={onShowOnMap}
+                    accessibilityRole="button"
+                    accessibilityLabel="Показать на карте"
+                    style={({ pressed }) => [
+                        styles.mapCard,
+                        { backgroundColor: theme.backgroundElement },
+                        pressed && styles.pressed,
+                    ]}>
+                    <ThemedText style={styles.mapCardText}>Показать на карте</ThemedText>
+                    <Chevron direction="down" size={8} />
+                </Pressable>
             )}
         </View>
     );
@@ -130,10 +192,27 @@ export default function PagePerson() {
     const updateTitleBottom = () => setTitleBottom(textTop.current + titleHeight.current);
 
     const personEvents = useMemo(() => person?.События ?? [], [person]);
-    // Точки нужны странице, только чтобы подсветить события, с которыми
-    // пришли с общей карты (`events`); иначе их грузит блок карты внизу,
-    // когда до него докрутят.
-    const mapPoints = usePersonMapPoints(number, Boolean(eventsParam));
+    // Точки нужны не только блоку карты: по ним видно, у каких событий есть
+    // место на карте, — над датой появляется категория и кнопка «Показать на
+    // карте».
+    const mapPoints = usePersonMapPoints(number);
+
+    // Сопоставление события биографии с его точками на карте. Одно событие
+    // может быть в нескольких местах — храним все id.
+    const eventPointInfo = useMemo(() => {
+        const byEvent = new Map<number, { ids: number[]; kind: string }>();
+
+        for (const point of mapPoints) {
+            const index = matchEvent(point, personEvents);
+            if (index === null) continue;
+
+            const found = byEvent.get(index);
+            if (found) found.ids.push(point.id);
+            else byEvent.set(index, { ids: [point.id], kind: point.kind });
+        }
+
+        return byEvent;
+    }, [mapPoints, personEvents]);
 
     const paramHighlight = useMemo(() => {
         const ids = new Set((eventsParam ?? '').split(',').filter(Boolean).map(Number));
@@ -144,6 +223,7 @@ export default function PagePerson() {
     const [flash, setFlash] = useState<{ indexes: number[]; key: number } | null>(null);
     const flashEvents = (indexes: number[]) =>
         setFlash((current) => ({ indexes, key: (current?.key ?? 0) + 1 }));
+    const [mapFocus, setMapFocus] = useState<{ ids: number[]; key: number } | null>(null);
 
     const scrollRef = usePageScrollRef();
     const headerHeight = useHeaderHeight();
@@ -163,7 +243,11 @@ export default function PagePerson() {
             const node = blockNodes.current[key];
             if (!node) return;
             stopFollow.current?.();
-            stopFollow.current = scrollBlockToTop(node, Spacing.three);
+
+            // В вебе шапка страницы стоит над прокруткой, но событие у самого
+            // её края читается как «прокрутило выше», поэтому оставляем ещё
+            // высоту шапки, а не только небольшой отступ.
+            stopFollow.current = scrollBlockToTop(node, headerHeight + Spacing.three);
             if (stopFollow.current) {
                 pendingScroll.current = null;
                 return;
@@ -193,10 +277,22 @@ export default function PagePerson() {
         blockNodes.current[key] = node;
     };
 
+    const showEventOnMap = (index: number) => {
+        const info = eventPointInfo.get(index);
+        if (!info) return;
+
+        setMapFocus((current) => ({
+            ids: info.ids,
+            key: (current?.key ?? 0) + 1,
+        }));
+        scrollToBlock('map');
+    };
+
     // Поиск по тексту биографии — полем в шапке (см. useEffect ниже). Блоки
     // в порядке страницы; у каждого — номер его первого совпадения.
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
+    const keyboardHeight = useKeyboardHeight();
     const [query, setQuery] = useState('');
     const needle = pageNeedle(query);
     const [active, setActive] = useState(0);
@@ -360,18 +456,28 @@ export default function PagePerson() {
                                 </ThemedText>
                             </View>
 
-                            {personEvents.map((event, index) => (
-                                <EventRow
-                                    key={index}
-                                    event={event}
-                                    flashKey={flash?.indexes.includes(index) ? flash.key : null}
-                                    onLayout={(event) => onBlockLayout(`e${index}`, event)}
-                                    viewRef={(node) => setBlockNode(`e${index}`, node)}
-                                    needle={needle}
-                                    first={search.first[`e${index}`] ?? 0}
-                                    active={current}
-                                />
-                            ))}
+                            {personEvents.map((event, index) => {
+                                const info = eventPointInfo.get(index);
+                                const category = info
+                                    ? capitalize(event.тип) ?? KIND_LABELS[info.kind] ?? capitalize(info.kind)
+                                    : null;
+
+                                return (
+                                    <EventRow
+                                        key={index}
+                                        event={event}
+                                        flashKey={flash?.indexes.includes(index) ? flash.key : null}
+                                        onLayout={(event) => onBlockLayout(`e${index}`, event)}
+                                        viewRef={(node) => setBlockNode(`e${index}`, node)}
+                                        needle={needle}
+                                        first={search.first[`e${index}`] ?? 0}
+                                        active={current}
+                                        category={category ?? undefined}
+                                        kind={info?.kind}
+                                        onShowOnMap={info ? () => showEventOnMap(index) : undefined}
+                                    />
+                                );
+                            })}
 
                             {person.дополнительный_текст && (
                                 <View
@@ -403,14 +509,20 @@ export default function PagePerson() {
                         </View>
 
                         {number !== null && (
-                            <PersonMap
-                                number={number}
-                                events={personEvents}
-                                onShowInText={(index) => {
-                                    scrollToEvent(index);
-                                    flashEvents([index]);
-                                }}
-                            />
+                            <View
+                                ref={(node) => setBlockNode('map', node)}
+                                onLayout={(event) => onBlockLayout('map', event)}>
+                                <PersonMap
+                                    number={number}
+                                    events={personEvents}
+                                    onShowInText={(index) => {
+                                        scrollToEvent(index);
+                                        flashEvents([index]);
+                                    }}
+                                    focusPointIds={mapFocus?.ids}
+                                    focusKey={mapFocus?.key}
+                                />
+                            </View>
                         )}
 
                         <View style={styles.actions}>
@@ -429,7 +541,11 @@ export default function PagePerson() {
                     current={current}
                     total={search.total}
                     onStep={step}
-                    style={{ bottom: insets.bottom + Spacing.three }}
+                    style={{
+                        bottom: keyboardHeight > 0
+                            ? keyboardHeight + Spacing.two
+                            : insets.bottom + Spacing.three,
+                    }}
                 />
             )}
         </View>
@@ -576,11 +692,43 @@ const styles = StyleSheet.create({
         gap: Spacing.two,
         paddingHorizontal: Spacing.four,
     },
+    eventCategoryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.two,
+        marginBottom: Spacing.half,
+    },
+    eventCategoryDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    eventCategory: {
+        fontSize: 15,
+        lineHeight: 20,
+        fontWeight: '500',
+    },
     eventDate: {
         fontSize: 17,
         lineHeight: 22,
         fontWeight: '600',
         marginBottom: Spacing.two,
+    },
+    mapCard: {
+        width: 'fit-content',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.two,
+        paddingVertical: Spacing.two,
+        paddingHorizontal: Spacing.three,
+        borderRadius: ButtonRadius,
+        marginTop: Spacing.one,
+    },
+    mapCardText: {
+        fontSize: 15,
+        lineHeight: 20,
+        fontWeight: '500',
     },
     eventText: {
         fontWeight: '400',

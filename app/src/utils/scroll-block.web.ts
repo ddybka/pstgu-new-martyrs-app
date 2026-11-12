@@ -29,15 +29,27 @@ function scrollParent(node: HTMLElement): HTMLElement | null {
 }
 
 export function scrollBlockToTop(node: unknown, offset: number): (() => void) | null {
-    if (!(node instanceof HTMLElement)) return null;
+    if (!(node instanceof HTMLElement) || !node.isConnected) return null;
 
     const scroller = scrollParent(node);
     if (!scroller) return null;
 
-    const targetTop = () =>
-        node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - offset;
+    const targetTop = () => {
+        // Узел мог размонтироваться после клика (перерисовался блок событий).
+        // У отсоединённого узла rect нулевой, и формула уводила бы страницу
+        // в начало. В таком случае просто не двигаем её дальше.
+        if (!node.isConnected) return scroller.scrollTop;
 
-    scroller.scrollTo({ top: targetTop(), behavior: 'smooth' });
+        return node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - offset;
+    };
+
+    // Без smooth: на длинной биографии браузерная анимация с якорем
+    // прокрутки уезжала выше события. Точная мгновенная установка надёжнее.
+    const scrollNow = () => {
+        scroller.scrollTop = targetTop();
+    };
+
+    scrollNow();
 
     let done = false;
     const stop = () => {
@@ -53,7 +65,14 @@ export function scrollBlockToTop(node: unknown, offset: number): (() => void) | 
     const observer =
         typeof ResizeObserver === 'undefined' || !content
             ? null
-            : new ResizeObserver(() => scroller.scrollTo({ top: targetTop(), behavior: 'smooth' }));
+            : new ResizeObserver(() => {
+                if (!node.isConnected) {
+                    stop();
+                    return;
+                }
+
+                scrollNow();
+            });
     if (content) observer?.observe(content);
 
     // Человек сам взялся за прокрутку — дальше не мешаем.

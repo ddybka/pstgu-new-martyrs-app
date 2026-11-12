@@ -79,7 +79,12 @@ const COOPERATIVE_LOCALE = {
 /** Перелёт к точкам: одна точка — фиксированный зум, несколько — по рамке. */
 function moveToFocus(map: MapLibreMap, focus: NonNullable<MartyrsMapProps['focus']>) {
     if (isSinglePoint(focus.bounds)) {
-        map.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 1000, essential: true });
+        map.flyTo({
+            center: focus.bounds[0],
+            zoom: focus.singleZoom ?? SINGLE_POINT_ZOOM,
+            duration: 1000,
+            essential: true,
+        });
         return;
     }
 

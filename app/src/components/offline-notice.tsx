@@ -42,7 +42,7 @@ export function OfflineNotice({
         <View style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.text}>
                 {updatedAt === null
-                    ? 'Нет связи с сервером — показаны сохранённые данные'
+                    ? 'Нет связи с сервером, показаны сохранённые данные'
                     : `Нет связи с сервером. Данные загружены ${formatMoment(updatedAt)}`}
             </ThemedText>
 
@@ -61,11 +61,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: Spacing.two,
-        paddingHorizontal: Spacing.two,
+        paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
-        marginBottom: Spacing.three,
+        marginVertical: Spacing.three,
     },
     text: {
         flexShrink: 1,
+        fontWeight: 400,
     },
 });

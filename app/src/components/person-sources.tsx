@@ -117,7 +117,7 @@ export function PersonSources({
                     {groups.map((group) => (
                         <View key={group.type} style={styles.group}>
                             {groups.length > 1 && (
-                                <ThemedText type="smallBold" themeColor="textSecondary">
+                                <ThemedText type="smallBold" themeColor="textSecondary" style={{ fontWeight: 500 }}>
                                     {group.label}
                                 </ThemedText>
                             )}

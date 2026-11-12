@@ -117,6 +117,16 @@ export function buildPersonsUrl({ filter }: UsePersonsOptions = {}) {
     return `public/dela?${params.toString()}`;
 }
 
+/** Все дела без фильтра по дню памяти — для полного скачивания базы. */
+export function buildAllPersonsUrl() {
+    const params = new URLSearchParams({
+        data_format: 'item',
+        fields: CARD_FIELDS.join(','),
+    });
+
+    return `public/dela?${params.toString()}`;
+}
+
 function collected(page: PersonItemsResponse, items: Person[], hasNext: boolean): PersonsResponse {
     return {
         ...page,

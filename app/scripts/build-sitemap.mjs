@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SITE_URL = 'https://map.dybka.ru';
+const SITE_URL = 'http://memory.nmbook.ru';
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
 
 const routes = [

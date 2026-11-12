@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 // Цвета и подписи типов — из лёгкого map-kinds, а не из map-config: тот тянет
@@ -43,12 +43,18 @@ export function PersonMap({
     number,
     events,
     onShowInText,
+    focusPointIds,
+    focusKey = 0,
 }: {
     number: number;
     /** События биографии из API — с ними сопоставляются точки. */
     events: readonly PersonEvent[];
     /** Прокрутить биографию к событию и подсветить его. */
     onShowInText: (index: number) => void;
+    /** Точки события, к которому перешли кнопкой «Показать на карте». */
+    focusPointIds?: readonly number[];
+    /** Новый ключ — снова открыть блок, даже если точки те же. */
+    focusKey?: number;
 }) {
     const theme = useTheme();
     // В вебе точки карты (~400 КБ) качаются, только когда блок близко к
@@ -60,6 +66,24 @@ export function PersonMap({
     // Показанные точки живут дольше, чем `open`: пока блок сворачивается,
     // в нём должно оставаться прежнее содержимое.
     const [shownIds, setShownIds] = useState<number[]>([]);
+
+    // Пришли из блока события: раскрываем карту на его точках. Точки могут
+    // ещё не загрузиться — тогда блок откроется, как только они придут.
+    useEffect(() => {
+        if (!focusPointIds || focusPointIds.length === 0) return;
+
+        let active = true;
+        void Promise.resolve().then(() => {
+            if (!active) return;
+
+            setShownIds([...focusPointIds]);
+            setOpen(true);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [focusKey, focusPointIds]);
 
     const bounds = useMemo(() => boundsOf(points), [points]);
 

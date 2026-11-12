@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { getPersonPhotos, photoUrl } from '@/hooks/use-image-person';
-import { buildPersonsUrl, dayOfYearFilter, fetchAllPersons, type Person } from '@/hooks/use-persons';
+import { buildAllPersonsUrl, buildPersonsUrl, dayOfYearFilter, fetchAllPersons, type Person } from '@/hooks/use-persons';
 import { writeCache } from '@/utils/api-cache';
 import { apiFetch } from '@/utils/api-fetch';
 import { removePhotos, savePhoto } from '@/utils/offline-photos';
@@ -145,20 +145,59 @@ async function runPool<T>(
     return failed;
 }
 
+type DownloadProgress = (stage: string, done: number, total: number) => void;
+
+/**
+ * Биографии и, если нужно, фотографии по номерам дел. Общая часть для
+ * месячной загрузки и для «всей базы»: списки дней уже собрали номера.
+ */
+async function downloadPersons(
+    numbers: readonly number[],
+    withPhotos: boolean,
+    signal: AbortSignal,
+    progress: DownloadProgress
+): Promise<{ failed: number; photos: number }> {
+    const photoIds: string[] = [];
+
+    progress('Биографии', 0, numbers.length);
+    let failed = await runPool(
+        numbers,
+        async (number) => {
+            const key = `public/dela/${number}`;
+            const person = await apiFetch<Person>(key);
+            await writeCache(key, person);
+            if (withPhotos) photoIds.push(...getPersonPhotos(person.Фотографии).map((photo) => photo.fileId));
+        },
+        signal,
+        (done) => progress('Биографии', done, numbers.length)
+    );
+
+    if (withPhotos && photoIds.length > 0) {
+        progress('Фотографии', 0, photoIds.length);
+        failed += await runPool(
+            photoIds,
+            // Сначала HTTPS, при отказе — HTTP, как и при показе снимков.
+            (fileId) => savePhoto(photoUrl(fileId), fileId).catch(() => savePhoto(photoUrl(fileId, false), fileId)),
+            signal,
+            (done) => progress('Фотографии', done, photoIds.length)
+        );
+    }
+
+    return { failed, photos: photoIds.length };
+}
+
 async function downloadMonth(
     month: number,
     withPhotos: boolean,
     signal: AbortSignal,
-    progress: (stage: string, done: number, total: number) => void
-): Promise<{ failed: number; persons: number; photos: number }> {
-    let failed = 0;
-
+    progress: DownloadProgress
+): Promise<{ failed: number; persons: number; photos: number; numbers: number[] }> {
     // 1. Списки дней — как их запрашивают «Сегодня» и «Календарь».
     const days = Array.from({ length: daysIn(month) }, (_, index) => index + 1);
     const numbers = new Set<number>();
 
     progress('Списки дней', 0, days.length);
-    failed += await runPool(
+    const listFailed = await runPool(
         days,
         async (day) => {
             const key = buildPersonsUrl({ filter: dayOfYearFilter(month, day) });
@@ -172,34 +211,9 @@ async function downloadMonth(
 
     // 2. Биографии целиком — как их запрашивает страница новомученика.
     const persons = [...numbers];
-    const photoIds: string[] = [];
+    const { failed: personFailed, photos } = await downloadPersons(persons, withPhotos, signal, progress);
 
-    progress('Биографии', 0, persons.length);
-    failed += await runPool(
-        persons,
-        async (number) => {
-            const key = `public/dela/${number}`;
-            const person = await apiFetch<Person>(key);
-            await writeCache(key, person);
-            if (withPhotos) photoIds.push(...getPersonPhotos(person.Фотографии).map((photo) => photo.fileId));
-        },
-        signal,
-        (done) => progress('Биографии', done, persons.length)
-    );
-
-    // 3. Фотографии — сжатые, те же, что показывает приложение.
-    if (withPhotos && photoIds.length > 0) {
-        progress('Фотографии', 0, photoIds.length);
-        failed += await runPool(
-            photoIds,
-            // Сначала HTTPS, при отказе — HTTP, как и при показе снимков.
-            (fileId) => savePhoto(photoUrl(fileId), fileId).catch(() => savePhoto(photoUrl(fileId, false), fileId)),
-            signal,
-            (done) => progress('Фотографии', done, photoIds.length)
-        );
-    }
-
-    return { failed, persons: persons.length, photos: photoIds.length };
+    return { failed: listFailed + personFailed, persons: persons.length, photos, numbers: persons };
 }
 
 /** Скачать выбранные месяцы. Если загрузка уже идёт, второй не будет. */
@@ -212,6 +226,7 @@ export async function startDownload(months: readonly number[], withPhotos: boole
     let failed = 0;
 
     const sorted = [...months].sort((a, b) => a - b);
+    const downloadedNumbers = new Set<number>();
 
     try {
         for (let index = 0; index < sorted.length; index += 1) {
@@ -229,9 +244,53 @@ export async function startDownload(months: readonly number[], withPhotos: boole
             );
 
             failed += result.failed;
+            result.numbers.forEach((number) => downloadedNumbers.add(number));
             await saveManifest({
                 ...manifest,
                 [month]: { at: Date.now(), persons: result.persons, photos: result.photos, withPhotos },
+            });
+        }
+
+        // Все двенадцать месяцев — это «вся база». Месячные списки содержат
+        // только дела с известной датой кончины, поэтому недостающие записи
+        // (без месяца) докачиваем отдельно.
+        if (sorted.length === 12) {
+            setState({
+                status: 'running',
+                month: 0,
+                stage: 'Списки всех дел',
+                done: 0,
+                total: 0,
+                monthsDone: 12,
+                monthsTotal: 12,
+            });
+
+            const all = await fetchAllPersons(buildAllPersonsUrl());
+            const missing = all.items
+                .map((person) => person.Номер)
+                .filter((number) => !downloadedNumbers.has(number));
+
+            const extra = await downloadPersons(missing, withPhotos, signal, (stage, done, total) =>
+                setState({
+                    status: 'running',
+                    month: 0,
+                    stage,
+                    done,
+                    total,
+                    monthsDone: 12,
+                    monthsTotal: 12,
+                })
+            );
+
+            failed += extra.failed;
+            await saveManifest({
+                ...manifest,
+                0: {
+                    at: Date.now(),
+                    persons: missing.length,
+                    photos: extra.photos,
+                    withPhotos,
+                },
             });
         }
 

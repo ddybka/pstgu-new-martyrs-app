@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://map.dybka.ru/sitemap.xml
+Sitemap: http://memory.nmbook.ru/sitemap.xml
