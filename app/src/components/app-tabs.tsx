@@ -17,7 +17,12 @@ export default function AppTabs() {
             // tintColor и игнорирует iconColor/labelStyle — без него будет синий.
             tintColor={colors.text}
             iconColor={{ selected: colors.text }}
-            labelStyle={{ selected: { color: colors.text } }}>
+            // Явный размер шрифта: на iOS 26 подписи вкладок иначе получают
+            // крупный системный кегль и обрезаются до «Се…», «Ка…».
+            labelStyle={{
+                default: { fontSize: 10 },
+                selected: { color: colors.text, fontSize: 10 },
+            }}>
             <NativeTabs.Trigger name="(today)">
                 <NativeTabs.Trigger.Label>Сегодня</NativeTabs.Trigger.Label>
                 <NativeTabs.Trigger.Icon sf="text.rectangle.page.fill" md="schedule" />

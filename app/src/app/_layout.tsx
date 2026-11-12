@@ -12,6 +12,8 @@ import { CardViewProvider } from '@/context/card-view';
 import { ColorSchemeProvider } from '@/context/color-scheme';
 import { LoginProvider } from '@/context/login';
 import { NameOrderProvider } from '@/context/name-order';
+import { PersonSortProvider } from '@/context/person-sort';
+import { PhotoLayoutProvider } from '@/context/photo-layout';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDetailHeaderOptions } from '@/hooks/use-stack-header';
 import { preloadMap } from '@/utils/preload-map';
@@ -26,9 +28,13 @@ export default function RootLayout() {
     return (
         <ColorSchemeProvider>
             <CardViewProvider>
-                <NameOrderProvider>
-                    <RootNavigator />
-                </NameOrderProvider>
+                <PhotoLayoutProvider>
+                    <PersonSortProvider>
+                        <NameOrderProvider>
+                            <RootNavigator />
+                        </NameOrderProvider>
+                    </PersonSortProvider>
+                </PhotoLayoutProvider>
             </CardViewProvider>
         </ColorSchemeProvider>
     );

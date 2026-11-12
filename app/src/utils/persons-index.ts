@@ -1,4 +1,5 @@
 import type { SearchHit } from '@/hooks/use-person-search';
+import type { Person } from '@/hooks/use-persons';
 
 /**
  * Поиск по ФИО без сети — по списку всех дел в бандле.
@@ -74,6 +75,16 @@ export function searchOffline(query: string): SearchHit[] {
 
     return matches.slice(0, MAX_RESULTS).map(({ index }) => {
         const [number, name, rank, born, died, holiness] = entries[index];
-        return { number, name, rank, holiness: holiness || null, born: born || null, died: died || null, snippet: null };
+        const person: Person = {
+            Номер: number,
+            Заголовок: rank ? `${name}, ${rank}` : name,
+            ФИО: name,
+            сан_церк_служение: rank,
+            чин_святости: holiness || undefined,
+            Рождение: born ? { год: born } : undefined,
+            Кончина: died ? { год: died } : undefined,
+        };
+
+        return { number, person, snippet: null };
     });
 }

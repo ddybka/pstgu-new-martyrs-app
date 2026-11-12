@@ -191,7 +191,7 @@ export function CustomTabList(props: TabListProps) {
                     <View style={[styles.menu, styles.menuEnter]}>
                         <CompactMenu.Provider value>
                             {props.children}
-                            <hr style={{ width: '90%', flex: 1, border: 'none', borderWidth: '1px', borderColor: colors.separator, borderStyle: 'solid', }} />
+                            <hr style={{ width: '90%', flex: 1, border: 'none', borderWidth: '.5px', borderColor: colors.separator, borderStyle: 'solid', }} />
                             {TAB_HEADER_MENU_ITEMS.map((item) => (
                                 <TabButton key={item.key} onPress={() => router.push(item.href)}>
                                     {item.label}

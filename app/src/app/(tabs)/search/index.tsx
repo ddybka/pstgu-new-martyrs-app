@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { ErrorContent } from '@/components/block-error';
+import { ErrorContent, HintContent } from '@/components/block-error';
 import { SearchResult } from '@/components/search-result';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing, WebHeaderInset } from '@/constants/theme';
@@ -57,7 +57,7 @@ export default function SearchScreen() {
         </View>
     ) : !search.loading && !search.error && search.total > 0 ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.count}>
-            Найдено: {plural(search.total, 'запись', 'записи', 'записей')}
+            Найдено {plural(search.total, 'запись', 'записи', 'записей')}
         </ThemedText>
     ) : null;
 
@@ -82,11 +82,12 @@ export default function SearchScreen() {
     );
 
     const empty = search.idle ? (
-        <View style={styles.hint}>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.hintText}>
-                Поиск идёт по полному тексту биографий: именам, местам и событиям.
-            </ThemedText>
-        </View>
+        <HintContent
+            icon={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
+            title="Поиск по биографиям"
+            description="Ищите по именам, местам и событиям."
+            style={styles.hintCard}
+        />
     ) : search.loading ? (
         <ActivityIndicator style={styles.spinner} />
     ) : search.error ? (
@@ -160,9 +161,9 @@ const styles = StyleSheet.create({
     count: {
         paddingHorizontal: Spacing.three,
         paddingBottom: Spacing.two,
-        fontWeight: 400,
-        textAlign: 'center',
-        paddingTop: Spacing.one
+        fontSize: 17,
+        lineHeight: 22,
+        paddingTop: Spacing.two
     },
     notice: {
         flexDirection: 'row',
@@ -183,6 +184,10 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.five,
     },
     errorCard: {
+        marginHorizontal: Spacing.three,
+        marginVertical: Spacing.four,
+    },
+    hintCard: {
         marginHorizontal: Spacing.three,
         marginVertical: Spacing.four,
     },

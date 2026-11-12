@@ -15,6 +15,8 @@ import { router } from 'expo-router';
 
 import { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
+import PstguCopyright from '@/components/pstgu-copyright';
+import { Platform } from 'expo';
 
 export function generateMetadata(): Metadata {
     const title = 'Календарь памяти — Память новомучеников';
@@ -122,8 +124,9 @@ function CalendarContent({ today }: { today: Date }) {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
-            <ListButton label="Мобильные приложения" onPress={() => router.push('/apps')} />
+            {Platform.OS === 'web' && <ListButton label="Мобильные приложения" onPress={() => router.push('/apps')} />}
             <ListButton label="Настройки" onPress={() => router.push('/settings')} />
+            <PstguCopyright />
         </View>
     );
 
@@ -151,10 +154,15 @@ const styles = StyleSheet.create({
     titleRow: {
         flexDirection: 'row',
         alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        rowGap: Spacing.two,
         paddingRight: Spacing.three,
     },
     dateTitle: {
         flex: 1,
+        // См. комментарий у главной: на узком вебе дата уступает место кнопкам,
+        // а не переносит их на новую строку.
+        minWidth: 160,
         paddingHorizontal: Spacing.three,
         paddingBottom: Spacing.three,
         fontSize: 17,

@@ -62,7 +62,10 @@ export function KindFilter({
                             styles.chip,
                             {
                                 backgroundColor: theme.background,
-                                borderColor: on ? colors[kind] : theme.separator,
+                                // Рамка — как линии карточек на главной. Цвет
+                                // типа события остаётся в точке-легенде: так
+                                // лента не спорит с карточками по цвету.
+                                borderColor: theme.separator,
                             },
                             pressed && styles.pressed,
                         ]}>

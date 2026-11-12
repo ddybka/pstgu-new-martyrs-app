@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
     StyleSheet,
     View,
@@ -6,22 +6,38 @@ import {
 } from "react-native";
 import { CardPressable } from "./card-pressable";
 import { CARD_MENU_NAVIGATES, PersonCardMenu } from "./person-card-menu";
-import { PersonPhotos } from "./person-photos";
+import { PersonPhotos, PersonThumbnail } from "./person-photos";
 import { PersonRankLine } from "./person-rank-line";
 import { ThemedText } from "./themed-text";
 import { HeadingFonts, Spacing } from "@/constants/theme";
-import { useCardView } from "@/context/card-view";
+import { useCardView, type CardView } from "@/context/card-view";
 import { useNameOrder } from "@/context/name-order";
+import { usePhotoLayout } from "@/context/photo-layout";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useTheme } from "@/hooks/use-theme";
 import { holinessOf, type Person } from "@/hooks/use-persons";
 import { capitalize, formatPersonHeading, formatPersonName } from "@/utils/person-name";
 import { router } from "expo-router";
 
-export function PersonCard({ person }: { person: Person }) {
+export function PersonCard({
+    person,
+    view: viewOverride,
+    extra,
+}: {
+    person: Person;
+    /**
+     * Вид карточки. Настройки показывают пример так же, как он выглядит в
+     * списке; `view` позволяет показать подробный вид независимо от выбора
+     * (например, в разделе про фотографию).
+     */
+    view?: CardView;
+    /** Дополнительный блок внутри карточки — фрагмент биографии в поиске. */
+    extra?: ReactNode;
+}) {
     const colorScheme = useColorScheme();
     const theme = useTheme();
-    const { view } = useCardView();
+    const { view: currentView } = useCardView();
+    const view = viewOverride ?? currentView;
     const { order } = useNameOrder();
     const compact = view === 'compact';
     // Чин святости — не в имени, а строкой над ним (см. PersonRankLine).
@@ -30,9 +46,14 @@ export function PersonCard({ person }: { person: Person }) {
     // Высота карточки нужна только превью меню на iOS (см. person-card-menu).
     const [height, setHeight] = useState<number | undefined>(undefined);
 
-    const content = compact
-        ? <CompactContent person={person} heading={heading} />
-        : <DetailedContent person={person} heading={heading} />;
+    const content = (
+        <>
+            {compact
+                ? <CompactContent person={person} heading={heading} />
+                : <DetailedContent person={person} heading={heading} />}
+            {extra}
+        </>
+    );
 
     // Копия карточки для поднятого вида в меню на iOS — без нажатия, рамки и
     // анимаций, на фоне страницы и во всю ширину, как в списке. Монтируется
@@ -105,15 +126,25 @@ function CompactContent({ person, heading }: { person: Person; heading?: string 
 
 /** Подробный вид: фотографии, годы жизни и тексты о рождении и кончине. */
 function DetailedContent({ person, heading }: { person: Person; heading?: string }) {
+    const { layout } = usePhotoLayout();
+    const compactPhoto = layout === 'compact';
+
     return (
         <>
-            <PersonPhotos photos={person.Фотографии} name={person.ФИО} />
+            {!compactPhoto && <PersonPhotos photos={person.Фотографии} name={person.ФИО} />}
 
             {/* Сан здесь — в строке с годами, над именем только чин. */}
-            <PersonRankLine holiness={holinessOf(person)} style={styles.rank} />
-            <ThemedText style={styles.title}>
-                {heading ?? '—'}
-            </ThemedText>
+            <View style={compactPhoto ? styles.headRow : undefined}>
+                <View style={compactPhoto ? styles.headText : undefined}>
+                    <PersonRankLine holiness={holinessOf(person)} style={styles.rank} />
+                    <ThemedText style={styles.title}>
+                        {heading ?? '—'}
+                    </ThemedText>
+                </View>
+                {compactPhoto && (
+                    <PersonThumbnail photos={person.Фотографии} name={person.ФИО} size={48} />
+                )}
+            </View>
             {(person?.Рождение?.год || person?.Кончина?.год || person?.сан_церк_служение) && (
                 <ThemedText style={styles.subtitle}>
                     {person?.Рождение?.год ?? "..."}-{person?.Кончина?.год ?? "..."}
@@ -149,6 +180,14 @@ const styles = StyleSheet.create({
     preview: {
         flex: 0,
         borderTopWidth: 0,
+    },
+    headRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.three,
+    },
+    headText: {
+        flex: 1,
     },
     title: {
         fontSize: 19,

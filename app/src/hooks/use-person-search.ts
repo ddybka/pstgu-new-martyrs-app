@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { Person } from '@/hooks/use-persons';
 import { NetworkError, apiFetch } from '@/utils/api-fetch';
 import { offlineSearchAvailable, searchOffline } from '@/utils/persons-index';
 
@@ -16,17 +17,13 @@ import { offlineSearchAvailable, searchOffline } from '@/utils/persons-index';
 
 export type SearchHit = {
     number: number;
-    /** ФИО по-справочному: «АБРАМОВ Сергей Николаевич». */
-    name: string;
-    rank: string;
-    /** Чин святости канонизированных: «исповедник». */
-    holiness: string | null;
-    born: number | null;
-    died: number | null;
+    /**
+     * Запись в том же виде, что и в списках «Сегодня» и «Календаря»: по ней
+     * рисуется та же карточка, что на главной.
+     */
+    person: Person;
     /** Фрагмент биографии с `<mark>`; без сети его нет. */
     snippet: string | null;
-    /** Фотографии дела, как в записи; без сети их нет. */
-    photos?: unknown[];
 };
 
 export type PersonSearch = {
@@ -51,7 +48,8 @@ type SearchItem = {
     год_рождения?: number;
     год_кончины?: number;
     пояснение?: string;
-    поля?: { Фотографии?: unknown[] };
+    /** Реквизиты, запрошенные в `fields` (см. `fetchPage`). */
+    поля?: Partial<Pick<Person, 'Заголовок' | 'Рождение' | 'Кончина' | 'Фотографии'>>;
 };
 
 type SearchResponse = {
@@ -65,24 +63,32 @@ const DEBOUNCE_MS = 300;
 const PAGE_SIZE = 20;
 
 function toHit(item: SearchItem): SearchHit {
+    const fields = item.поля;
+    const born = fields?.Рождение?.год ?? item.год_рождения;
+    const died = fields?.Кончина?.год ?? item.год_кончины;
+
     return {
         number: item.Номер,
-        name: item.ФИО ?? `Дело №${item.Номер}`,
-        rank: item.сан_церк_служение ?? '',
-        holiness: item.чин_святости ?? null,
-        born: item.год_рождения ?? null,
-        died: item.год_кончины ?? null,
+        person: {
+            Номер: item.Номер,
+            Заголовок: fields?.Заголовок ?? item.ФИО ?? `Дело №${item.Номер}`,
+            ФИО: item.ФИО,
+            сан_церк_служение: item.сан_церк_служение,
+            чин_святости: item.чин_святости,
+            Рождение: { ...fields?.Рождение, год: born },
+            Кончина: { ...fields?.Кончина, год: died },
+            Фотографии: fields?.Фотографии,
+        },
         snippet: item.пояснение ?? null,
-        photos: item.поля?.Фотографии,
     };
 }
 
 function fetchPage(query: string, skip: number) {
     const params = new URLSearchParams({
         data_format: 'item',
-        // Фотографии — ради миниатюры в выдаче: это лишь ссылки на файлы, и
-        // ответ от них почти не тяжелеет.
-        fields: 'Фотографии',
+        // Карточка списка — та же, что на главной: ей нужны фотография,
+        // годы и тексты о рождении и кончине.
+        fields: 'Заголовок,Рождение,Кончина,Фотографии',
         text_filter: query,
         skip: String(skip),
         take: String(PAGE_SIZE),

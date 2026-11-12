@@ -1,16 +1,12 @@
-import { router } from 'expo-router';
 import { memo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { PersonThumbnail } from './person-photos';
-import { PersonRankLine } from './person-rank-line';
+import { PersonCard } from './person-card';
 import { ThemedText } from './themed-text';
 
-import { HeadingFonts, Spacing } from '@/constants/theme';
-import { useNameOrder } from '@/context/name-order';
+import { Spacing } from '@/constants/theme';
 import type { SearchHit } from '@/hooks/use-person-search';
 import { useTheme } from '@/hooks/use-theme';
-import { formatPersonName } from '@/utils/person-name';
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' ' };
 
@@ -36,92 +32,44 @@ function splitMarks(text: string) {
     return text.split(/<mark>(.*?)<\/mark>/g);
 }
 
-function formatYears(born: number | null, died: number | null) {
-    if (!born && !died) return null;
-    return `${born ?? '?'}–${died ?? '?'}`;
-}
-
-/** Мемоизирована: догруженная страница выдачи не перерисовывает уже показанные строки. */
+/**
+ * Выдача поиска — та же карточка, что на главной, плюс фрагмент биографии с
+ * подсвеченными совпадениями: по нему видно, почему запись попала в поиск.
+ */
 export const SearchResult = memo(function SearchResult({ hit }: { hit: SearchHit }) {
-    const theme = useTheme();
-    const { order } = useNameOrder();
-    const name = formatPersonName(hit.name, order) ?? hit.name;
-    const years = formatYears(hit.born, hit.died);
-    const details = [hit.rank, years].filter(Boolean).join(', ');
-
     return (
-        <Pressable
-            onPress={() => router.push({ pathname: '/person/[id]', params: { id: hit.number } })}
-            accessibilityRole="link"
-            style={({ pressed }) => [
-                styles.row,
-                { borderColor: theme.separator },
-                pressed && { backgroundColor: theme.backgroundElement },
-            ]}>
-            <View style={styles.head}>
-                <View style={styles.headText}>
-                    <PersonRankLine holiness={hit.holiness} style={styles.holiness} />
-                    <ThemedText style={styles.name}>{name}</ThemedText>
-                    {details ? (
-                        <ThemedText type="small" themeColor="textSecondary">
-                            {details}
-                        </ThemedText>
-                    ) : null}
-                </View>
-                <PersonThumbnail photos={hit.photos} name={name} size={THUMBNAIL_SIZE} />
-            </View>
-
-            {hit.snippet && (
-                <View style={styles.snippet}>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={4}>
-                        {splitMarks(cleanSnippet(hit.snippet)).map((part, index) =>
-                            index % 2 === 1 ? (
-                                <ThemedText
-                                    key={index}
-                                    type="smallBold"
-                                    style={{ backgroundColor: theme.backgroundSelected }}>
-                                    {part}
-                                </ThemedText>
-                            ) : (
-                                part
-                            )
-                        )}
-                    </ThemedText>
-                </View>
-            )}
-        </Pressable>
+        <PersonCard
+            person={hit.person}
+            extra={hit.snippet ? <Snippet snippet={hit.snippet} /> : undefined}
+        />
     );
 });
 
-const THUMBNAIL_SIZE = 48;
+function Snippet({ snippet }: { snippet: string }) {
+    const theme = useTheme();
+
+    return (
+        <View style={styles.snippet}>
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={4}>
+                {splitMarks(cleanSnippet(snippet)).map((part, index) =>
+                    index % 2 === 1 ? (
+                        <ThemedText
+                            key={index}
+                            type="smallBold"
+                            style={{ backgroundColor: theme.backgroundSelected }}>
+                            {part}
+                        </ThemedText>
+                    ) : (
+                        part
+                    )
+                )}
+            </ThemedText>
+        </View>
+    );
+}
 
 const styles = StyleSheet.create({
-    head: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: Spacing.three,
-    },
-    headText: {
-        flex: 1,
-        gap: Spacing.half,
-    },
-    holiness: {
-        fontSize: 14,
-        lineHeight: 18,
-        fontWeight: '400',
-    },
-    row: {
-        paddingHorizontal: Spacing.three,
-        paddingVertical: Spacing.three,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        gap: Spacing.half,
-    },
-    name: {
-        fontFamily: HeadingFonts.bold,
-        fontSize: 17,
-        lineHeight: 22,
-    },
     snippet: {
-        paddingTop: Spacing.one,
+        marginTop: Spacing.two,
     },
 });

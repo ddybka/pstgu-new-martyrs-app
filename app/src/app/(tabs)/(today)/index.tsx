@@ -12,6 +12,8 @@ import Constants from 'expo-constants';
 
 import type { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
+import PstguCopyright from '@/components/pstgu-copyright';
+import { Platform } from 'expo';
 
 export function generateMetadata(): Metadata {
     const title = 'Память новомучеников';
@@ -60,8 +62,9 @@ export default function HomeScreen() {
         <View style={styles.footer}>
             <ListButton label="Помочь проекту" onPress={() => router.push('/help')} />
             <ListButton label="О проекте" onPress={() => router.push('/about')} />
-            <ListButton label="Мобильные приложения" onPress={() => router.push('/apps')} />
+            {Platform.OS === 'web' && <ListButton label="Мобильные приложения" onPress={() => router.push('/apps')} />}
             <ListButton label="Настройки" onPress={() => router.push('/settings')} />
+            <PstguCopyright />
             <ThemedText
                 type="small"
                 themeColor="textSecondary"
@@ -93,10 +96,15 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        rowGap: Spacing.two,
         paddingRight: Spacing.three,
     },
     date: {
         flex: 1,
+        // Не 220: при 160 «Найдено…» и кнопки сортировки помещаются в одну
+        // строку даже на узком вебе, а текст даты просто переносится.
+        minWidth: 160,
         padding: Spacing.three,
         fontSize: 17,
         lineHeight: 22,

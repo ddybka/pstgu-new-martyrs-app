@@ -76,6 +76,28 @@ const COOPERATIVE_LOCALE = {
     'CooperativeGesturesHandler.MobileHelpText': 'Двигайте карту двумя пальцами',
 };
 
+/** Перелёт к точкам: одна точка — фиксированный зум, несколько — по рамке. */
+function moveToFocus(map: MapLibreMap, focus: NonNullable<MartyrsMapProps['focus']>) {
+    if (isSinglePoint(focus.bounds)) {
+        map.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 1000, essential: true });
+        return;
+    }
+
+    // Для ссылки из биографии — симметричные поля, чтобы точки были ровно
+    // по центру; для поиска — с запасом под фильтры и шторку.
+    const padding =
+        focus.padding === undefined
+            ? {
+                top: BOUNDS_PADDING * 3,
+                right: BOUNDS_PADDING,
+                bottom: BOUNDS_PADDING * 4,
+                left: BOUNDS_PADDING,
+            }
+            : { top: focus.padding, right: focus.padding, bottom: focus.padding, left: focus.padding };
+
+    map.fitBounds(focus.bounds, { padding, duration: 1000, essential: true });
+}
+
 export default function MartyrsMap({
     points,
     bounds,
@@ -89,6 +111,11 @@ export default function MartyrsMap({
 
     const containerRef = useRef<ComponentRef<typeof View>>(null);
     const [cssReady, setCssReady] = useState(mapCssReady);
+    // Карта создаётся асинхронно: пока не загрузился стиль подложки и не
+    // добавились слои, `fitBounds`/`flyTo` вызывать некуда. Флаг — чтобы
+    // перелёт к точкам не потерялся, если его попросили раньше (см. эффект
+    // `focus` ниже).
+    const [mapReady, setMapReady] = useState(false);
 
     useEffect(() => {
         if (cssReady) return;
@@ -118,6 +145,8 @@ export default function MartyrsMap({
     useEffect(() => {
         const container = containerRef.current as unknown as HTMLElement | null;
         if (!container || !mapStyle || !cssReady) return;
+
+        setMapReady(false);
 
         const map = new MapLibreMap({
             container,
@@ -192,6 +221,10 @@ export default function MartyrsMap({
             map.addLayer({ id: POINT_LAYER_ID, source: SOURCE_ID, ...layers.points });
             map.addLayer({ id: CLUSTER_COUNT_LAYER_ID, source: SOURCE_ID, ...layers.clusterCount });
 
+            // Слои на месте — теперь можно лететь к точкам, к которым пришли
+            // со страницы новомученика (см. эффект `focus` ниже).
+            setMapReady(true);
+
             map.on('click', CLUSTER_LAYER_ID, (event: MapLayerMouseEvent) => {
                 const properties = event.features?.[0]?.properties;
                 if (properties?.cluster_id == null) return;
@@ -223,6 +256,7 @@ export default function MartyrsMap({
         });
 
         return () => {
+            setMapReady(false);
             map.remove();
             mapRef.current = null;
         };
@@ -243,17 +277,13 @@ export default function MartyrsMap({
 
     useEffect(() => {
         const map = mapRef.current;
-        if (!map || !focus) return;
+        // Фокус мог прийти раньше, чем карта создалась и загрузила слои: тогда
+        // перелёт нужно повторить, когда `mapReady` станет true, иначе камера
+        // останется на обзорном виде (а не «где-то около» нужных точек).
+        if (!map || !mapReady || !focus) return;
 
-        if (isSinglePoint(focus.bounds)) {
-            map.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 800 });
-        } else {
-            map.fitBounds(focus.bounds, {
-                padding: { top: BOUNDS_PADDING * 3, right: BOUNDS_PADDING, bottom: BOUNDS_PADDING * 4, left: BOUNDS_PADDING },
-                duration: 800,
-            });
-        }
-    }, [focus]);
+        moveToFocus(map, focus);
+    }, [focus, mapReady]);
 
     useEffect(() => {
         const map = mapRef.current;

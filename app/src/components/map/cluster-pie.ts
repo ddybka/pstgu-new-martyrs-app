@@ -28,11 +28,16 @@ export const PIE_SIZE = 168;
 const KIND_KEYS = POINT_KINDS.map((_, index) => `k${index}`);
 
 export const CLUSTER_PROPERTIES = Object.fromEntries(
-    POINT_KINDS.map(({ kind }, index) => [
-        KIND_KEYS[index],
-        ['+', ['case', ['==', ['get', 'kind'], kind], 1, 0]],
-    ])
-) as Record<string, ExpressionSpecification>;
+    POINT_KINDS.map(({ kind }, index) => {
+        const key = KIND_KEYS[index];
+        const count = ['case', ['==', ['get', 'kind'], kind], 1, 0];
+
+        // Не строковый оператор `"+"`, а полное выражение с `accumulated`:
+        // нативный MapLibre на iOS иначе сохраняет в свойство кластера сам
+        // оператор, и в кластерах оказывается `"+"` вместо числа.
+        return [key, [['+', ['accumulated'], ['get', key]], count]];
+    })
+) as unknown as Record<string, [ExpressionSpecification, ExpressionSpecification]>;
 
 /** Имя картинки кластера из его свойств. */
 export function pieImageExpression(scheme: 'light' | 'dark', version = 0): ExpressionSpecification {

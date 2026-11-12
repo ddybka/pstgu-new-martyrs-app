@@ -1,13 +1,27 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Switch,
+    View,
+} from 'react-native';
 
+import { ErrorContent } from '@/components/block-error';
 import { INFO_INSET, InfoPage, InfoParagraph, InfoSection } from '@/components/info-page';
+import { PersonCard } from '@/components/person-card';
+import { PersonCardsSkeleton } from '@/components/person-card-skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { PlateButton } from '@/components/ui/plate-button';
 import { ButtonRadius, Spacing } from '@/constants/theme';
+import type { CardView } from '@/context/card-view';
 import { useColorSchemePreference, type ColorSchemePreference } from '@/context/color-scheme';
 import { NAME_ORDERS, useNameOrder } from '@/context/name-order';
+import { PHOTO_LAYOUTS, usePhotoLayout } from '@/context/photo-layout';
 import { useApiResource } from '@/hooks/use-api-resource';
+import type { Person } from '@/hooks/use-persons';
 import { useTheme } from '@/hooks/use-theme';
 import { apiFetch } from '@/utils/api-fetch';
 import {
@@ -22,6 +36,9 @@ import { plural } from '@/utils/plural';
 
 import { Metadata } from "expo-router/server";
 import { SITE_URL } from "@/constants/site";
+
+import { personPhoto } from '@/data/examples/person-photo';
+import { personName } from '@/data/examples/person-name';
 
 export function generateMetadata(): Metadata {
     const title = 'Настройки - Память новомучеников.';
@@ -81,11 +98,27 @@ async function fetchMonthCounts(): Promise<number[]> {
     );
 }
 
+/**
+ * Готовый снимок ответа API: страница настроек не ходит в сеть ради примеров.
+ * `refresh` есть только у «живого» ресурса, для снимка он не нужен.
+ */
+type PersonExample = {
+    person: Person | null;
+    loading: boolean;
+    error: Error | null;
+    refresh?: () => Promise<void>;
+};
+
 export default function SettingsScreen() {
+    // Два настоящих дела из базы — снимки ответа API (см. data/examples).
+    const photoExample = personPhoto as PersonExample;
+    const nameExample = personName as PersonExample;
+
     return (
         <InfoPage>
             <ThemeSection />
-            <NameOrderSection />
+            <PhotoLayoutSection example={photoExample} />
+            <NameOrderSection example={nameExample} />
             {Platform.OS !== 'web' && <DownloadSection />}
         </InfoPage>
     );
@@ -101,18 +134,59 @@ function ThemeSection() {
     );
 }
 
-function NameOrderSection() {
-    const { order, setOrder } = useNameOrder();
-    const example = NAME_ORDERS.find((option) => option.value === order)?.example;
+function PhotoLayoutSection({ example }: { example: PersonExample }) {
+    const { layout, setLayout } = usePhotoLayout();
 
     return (
-        <InfoSection title="Отображение ФИО" style={styles.section}>
-            <Segments options={NAME_ORDERS} value={order} onChange={setOrder} />
-            <ThemedText themeColor="textSecondary" style={[styles.note, styles.inset]}>
-                Пример: {example}
-            </ThemedText>
+        <InfoSection title="Отображение фотографии" style={styles.section}>
+            <Segments options={PHOTO_LAYOUTS} value={layout} onChange={setLayout} />
+            {/* Подробный вид — независимо от выбранного: иначе в «Кратко»
+                фотографии не было бы и настройка ничего не показывала. */}
+            <PersonPreview example={example} view="detailed" />
         </InfoSection>
     );
+}
+
+function NameOrderSection({ example }: { example: PersonExample }) {
+    const { order, setOrder } = useNameOrder();
+
+    return (
+        <InfoSection title="Сначала показывать" style={styles.section}>
+            <Segments options={NAME_ORDERS} value={order} onChange={setOrder} />
+            <PersonPreview example={example} />
+        </InfoSection>
+    );
+}
+
+/**
+ * Настоящая карточка проекта в качестве примера. Некликабельна: настройки
+ * показывают вид, а не открывают биографию.
+ */
+function PersonPreview({ example, view }: { example: PersonExample; view?: CardView }) {
+    const { person, loading, error, refresh } = example;
+
+    if (person) {
+        return (
+            <View pointerEvents="none">
+                <PersonCard person={person} view={view} />
+            </View>
+        );
+    }
+
+    if (loading) return <PersonCardsSkeleton count={1} />;
+
+    if (error) {
+        return (
+            <ErrorContent
+                error={error}
+                onRetry={refresh}
+                title="Не удалось показать пример"
+                style={styles.previewError}
+            />
+        );
+    }
+
+    return null;
 }
 
 /** Варианты в ряд, поровну на всю ширину. Выбранный — на плашке, как активная вкладка в веб-шапке. */
@@ -198,13 +272,10 @@ function DownloadSection() {
     return (
         <InfoSection title="Скачать базу" style={styles.section}>
             <InfoParagraph>
-                Биографии сохранятся на устройстве и будут открываться без интернета, например в поездке. Месяц — это дни памяти: скачаются все, кого поминают в этом месяце.
+                Биографии сохранятся на устройстве и будут открываться без интернета, например в поездке.
             </InfoParagraph>
 
             <View style={styles.monthsHeader}>
-                <ThemedText themeColor="textSecondary" style={styles.note}>
-                    Выбрано месяцев: {selected.length}
-                </ThemedText>
                 <PlateButton label={allSelected ? 'Снять все' : 'Выбрать все'} onPress={toggleAll} />
             </View>
 
@@ -220,8 +291,6 @@ function DownloadSection() {
                             accessibilityLabel={saved ? `${name}, скачан` : name}
                             disabled={running}
                             onPress={() => toggleMonth(index)}
-                            // Как вкладки веб-шапки: серые плашки без обводки,
-                            // выбранные — инверсные.
                             style={({ pressed }) => [
                                 styles.month,
                                 { backgroundColor: active ? theme.text : theme.backgroundElement },
@@ -264,11 +333,9 @@ function DownloadSection() {
                         </ThemedText>
                     </View>
 
-                    {download.status === 'done' && (
+                    {download.status === 'done' && download.failed !== 0 && (
                         <ThemedText themeColor="textSecondary" style={[styles.note, styles.inset]}>
-                            {download.failed === 0
-                                ? 'Готово: всё скачано.'
-                                : `Готово, но ${plural(download.failed, 'запись', 'записи', 'записей')} не скачалось — повторите загрузку при хорошей связи.`}
+                            {`Готово, но ${plural(download.failed, 'запись', 'записи', 'записей')} не скачалось, повторите загрузку при хорошей связи.`}
                         </ThemedText>
                     )}
                     {download.status === 'error' && (
@@ -315,7 +382,7 @@ function DownloadSection() {
             {!running && downloadedMonths.length > 0 && (
                 <View style={[styles.summary, styles.saved]}>
                     <ThemedText themeColor="textSecondary" style={[styles.note, styles.savedText]}>
-                        Скачано: {plural(downloadedMonths.length, 'месяц', 'месяца', 'месяцев')}
+                        Загружен {plural(downloadedMonths.length, 'месяц', 'месяца', 'месяцев')}
                         {savedPhotos > 0 ? `, фотографии — ${formatSize(savedPhotos / 1024 / 1024)}` : ''}
                     </ThemedText>
                     <PlateButton label="Удалить" onPress={confirmClear} />
@@ -356,6 +423,7 @@ function formatSize(megabytes: number) {
 const styles = StyleSheet.create({
     section: {
         marginTop: Spacing.five,
+        marginBottom: Spacing.five,
         gap: Spacing.three,
     },
     segments: {
@@ -392,12 +460,16 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         fontWeight: '400',
     },
+    previewError: {
+        marginHorizontal: INFO_INSET,
+        marginVertical: Spacing.two,
+    },
     monthsHeader: {
         paddingHorizontal: INFO_INSET,
         marginTop: Spacing.two,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
     },
     months: {
         flexDirection: 'row',

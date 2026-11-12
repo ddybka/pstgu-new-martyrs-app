@@ -105,8 +105,8 @@ export function EventsPanel({
     const counted =
         groups.length === 1
             ? plural(events.length, 'событие', 'события', 'событий')
-            : `${plural(events.length, 'событие', 'события', 'событий')} · ${plural(groups.length, 'человек', 'человека', 'человек')}`;
-    const summary = found ? `Найдено: ${counted}` : counted;
+            : `${plural(events.length, 'событие', 'события', 'событий')} и ${plural(groups.length, 'человек', 'человека', 'человек')}`;
+    const summary = found ? `Найдено ${counted}` : counted;
 
     return (
         <View
@@ -146,10 +146,6 @@ export function EventsPanel({
                 />
             )}
 
-            {/* Строки тяжёлые (у человека бывают десятки событий), и
-                досоздаются они на главном потоке: пачками помельче и чаще, а
-                ушедшие с экрана отцепляются от иерархии — так прокрутка не
-                проседает ниже частоты экрана. */}
             <FlatList
                 data={shown}
                 keyExtractor={(group) => String(group.number)}
@@ -237,11 +233,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: Spacing.three,
         paddingHorizontal: Spacing.three,
-        paddingTop: Spacing.three,
-        paddingBottom: Spacing.two,
+        paddingVertical: Spacing.three,
     },
     summary: {
         flex: 1,
+        fontWeight: 500,
+        display: 'flex',
+        justifyContent: 'center',
+        paddingLeft: 36
     },
     search: {
         marginHorizontal: Spacing.three,
@@ -255,7 +254,8 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.three,
     },
     separator: {
-        height: StyleSheet.hairlineWidth,
+        // Как линии между карточками на главной (см. person-card).
+        height: 0.5,
         marginHorizontal: Spacing.three,
     },
     group: {
@@ -302,5 +302,6 @@ const styles = StyleSheet.create({
     empty: {
         textAlign: 'center',
         paddingVertical: Spacing.four,
+        fontWeight: 500
     },
 });

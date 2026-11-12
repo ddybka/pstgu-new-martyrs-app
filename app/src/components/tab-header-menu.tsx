@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { TAB_HEADER_MENU_ITEMS } from './tab-header-menu-items';
 
 import { CARD_VIEWS, useCardView } from '@/context/card-view';
+import { PERSON_SORTS, usePersonSort } from '@/context/person-sort';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -13,10 +14,26 @@ import { useTheme } from '@/hooks/use-theme';
 export function TabHeaderMenu() {
     const theme = useTheme();
     const { view, setView } = useCardView();
+    const { sort, setSort } = usePersonSort();
     const isIos = Platform.OS === 'ios';
 
     return (
         <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Menu
+                icon={isIos ? 'arrow.up.arrow.down' : require('@/assets/images/icons/sort.png')}
+                tintColor={theme.text}
+                title="Сортировка"
+                accessibilityLabel="Сортировка">
+                {PERSON_SORTS.map((option) => (
+                    <Stack.Toolbar.MenuAction
+                        key={option.value}
+                        isOn={option.value === sort}
+                        onPress={() => setSort(option.value)}>
+                        {!isIos && option.value === sort ? `✓  ${option.label}` : option.label}
+                    </Stack.Toolbar.MenuAction>
+                ))}
+            </Stack.Toolbar.Menu>
+
             <Stack.Toolbar.Menu
                 icon={isIos ? 'line.3.horizontal.decrease' : require('@/assets/images/icons/filter-list.png')}
                 tintColor={theme.text}

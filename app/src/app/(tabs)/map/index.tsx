@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams, type ErrorBoundaryProps } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BlockError } from '@/components/block-error';
 import { BlockLoading } from '@/components/block-loading';
 import { EventsPanel } from '@/components/map/events-panel';
 import { FilterChip, KindFilter } from '@/components/map/kind-filter';
@@ -60,6 +61,18 @@ const NO_IDS: readonly number[] = [];
 /** Пауза после ввода, прежде чем карта полетит к найденному. */
 const FOCUS_DELAY_MS = 500;
 
+/**
+ * Пауза после перелёта к точкам, прежде чем открыть их список. Так сначала
+ * видно сам перелёт и точки по центру, а уже потом появляется пояснение.
+ */
+const FOCUS_PANEL_DELAY_MS = 1200;
+
+/**
+ * Поля вокруг точек человека на общей карте. Симметричные — чтобы места
+ * оказались ровно по центру экрана, как на мини-карте биографии.
+ */
+const PERSON_FOCUS_PADDING = 72;
+
 const SEARCH_HEIGHT = 40;
 
 /** См. комментарий у места использования. На других платформах — просто обёртка. */
@@ -79,21 +92,16 @@ function EdgeEffectHost({ children }: { children: React.ReactNode }) {
     );
 }
 
-export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
-    const isMissingNativeModule = /TurboModuleRegistry|could not be found/.test(error.message);
-
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+    // Технический текст ошибки (WebGL, отсутствующий нативный модуль) человеку
+    // ничего не даёт: показываем ту же плашку, что и при потере связи, но без
+    // разбора причины — только «произошла ошибка» и «Повторить».
     return (
-        <ThemedView style={styles.center}>
-            <ThemedText>Карта не загрузилась</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-                {isMissingNativeModule
-                    ? 'Приложение собрано без нативного модуля карты. Нужна пересборка: npx expo run:ios'
-                    : error.message}
-            </ThemedText>
-            <Pressable onPress={retry}>
-                <ThemedText type="linkPrimary">Повторить</ThemedText>
-            </Pressable>
-        </ThemedView>
+        <BlockError
+            title="Карта не загрузилась"
+            description="Произошла ошибка"
+            onRetry={retry}
+        />
     );
 }
 
@@ -107,7 +115,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
  * по периоду и «только прославленные».
  */
 export default function MapScreen() {
-    const { person } = useLocalSearchParams<{ person?: string }>();
+    const { person, events: focusEvents } = useLocalSearchParams<{ person?: string; events?: string }>();
     const focusNumber = normalizePersonNumber(person);
     const insets = useSafeAreaInsets();
     const theme = useTheme();
@@ -118,7 +126,28 @@ export default function MapScreen() {
     const filterTop = Platform.OS === 'ios' ? headerHeight + Spacing.two : undefined;
 
     const points = useMapPoints();
-    const focusPoints = usePersonMapPoints(focusNumber);
+    const personPoints = usePersonMapPoints(focusNumber);
+
+    // Пришли со страницы новомученика с открытым блоком событий — ведём
+    // камеру только к этим точкам. Нет списка событий — ко всем местам
+    // человека. Остальные точки карты при этом не прячутся.
+    const focusEventIds = useMemo(() => {
+        const raw = Array.isArray(focusEvents) ? focusEvents[0] : focusEvents;
+        return new Set(
+            (raw ?? '')
+                .split(',')
+                // Пустая строка — это не id 0: без списка событий параметра
+                // нет вовсе, и разбирать нечего.
+                .filter((part: string) => part.trim() !== '')
+                .map(Number)
+                .filter((id: number) => Number.isInteger(id))
+        );
+    }, [focusEvents]);
+    const focusPoints = useMemo(() => {
+        if (focusEventIds.size === 0) return personPoints;
+        const selected = personPoints.filter((point) => focusEventIds.has(point.id));
+        return selected.length > 0 ? selected : personPoints;
+    }, [personPoints, focusEventIds]);
 
     const [hidden, setHidden] = useState(NO_KINDS);
     const [period, setPeriod] = useState<PeriodValue>('all');
@@ -131,7 +160,11 @@ export default function MapScreen() {
     const searching = words.length > 0;
     const [resultsClosed, setResultsClosed] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[] | null>(null);
-    const [focus, setFocus] = useState<{ bounds: [[number, number], [number, number]]; key: number } | null>(null);
+    const [focus, setFocus] = useState<{
+        bounds: [[number, number], [number, number]];
+        key: number;
+        padding?: number;
+    } | null>(null);
 
     // id точки — её позиция в снимке, и после фонового обновления точек
     // старые id указывали бы на чужие события. Выбор сбрасывается.
@@ -200,11 +233,56 @@ export default function MapScreen() {
     const focusIds = useMemo(() => focusPoints.map((point) => point.id), [focusPoints]);
     const focusBounds = useMemo(() => boundsOf(focusPoints), [focusPoints]);
 
+    // Приход со страницы новомученика — плавный перелёт к его местам.
+    // `bounds` карте не отдаём: иначе она сначала прыгнула бы туда без
+    // анимации, и перелёта бы не было видно. Остальные точки остаются на
+    // карте, просто камера подлетает к нужным.
+    useEffect(() => {
+        if (focusNumber === null || !focusBounds) return;
+
+        // Не синхронно в теле эффекта: иначе React Compiler считает это
+        // каскадной отрисовкой (как в `useApiResource`).
+        let active = true;
+        void Promise.resolve().then(() => {
+            if (!active) return;
+
+            setFocus((current) => ({
+                bounds: focusBounds,
+                key: (current?.key ?? 0) + 1,
+                padding: PERSON_FOCUS_PADDING,
+            }));
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [focusNumber, focusBounds]);
+
+    // С мини-карты пришли с открытым блоком событий — открываем тот же блок
+    // и здесь: по нему сразу видно, что это за точки, а не только где они.
+    // Один раз на ссылку, чтобы после закрытия блок не раскрывался снова.
+    const openedFocus = useRef<string | null>(null);
+    useEffect(() => {
+        if (focusNumber === null || focusEventIds.size === 0) return;
+
+        const key = `${focusNumber}:${[...focusEventIds].join(',')}`;
+        if (openedFocus.current === key) return;
+
+        const ids = focusPoints.map((point) => point.id);
+        if (ids.length === 0) return;
+
+        const timer = setTimeout(() => {
+            openedFocus.current = key;
+            setSelectedIds(ids);
+        }, FOCUS_PANEL_DELAY_MS);
+
+        return () => clearTimeout(timer);
+    }, [focusNumber, focusEventIds, focusPoints]);
+
     const isClient = useIsClient();
 
-    // Точки читаются асинхронно (см. `use-map-points`). Камера ставится по
-    // ним один раз, при создании карты, поэтому без точек карту не создаём:
-    // иначе по ссылке «на общей карте» она открылась бы не на том человеке.
+    // Точки читаются асинхронно (см. `use-map-points`). Без них не знаем, куда
+    // лететь по ссылке «на общей карте», поэтому сначала показываем загрузку.
     if (!isClient || points.length === 0) return <BlockLoading />;
 
     // Нижний край: на нативе карта уходит под плавающую панель вкладок,
@@ -220,17 +298,14 @@ export default function MapScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            {/* Неподвижная прокрутка вокруг карты — только ради системного края
-                под шапкой на iOS 26 (градиентное «стекло», UIScrollEdgeEffect).
-                Его рисует только UIScrollView, и react-native-screens ищет его
-                по цепочке первых потомков экрана, — поэтому она первая.
-                Прокрутка выключена, и жесты достаются карте; отступы под шапку
-                выключены, чтобы карта с самого начала была под ней. */}
             <EdgeEffectHost>
                 <Suspense fallback={<BlockLoading />}>
                     <MartyrsMap
                         points={visible}
-                        bounds={focusBounds}
+                        // Камера ставится не в момент создания, а перелётом
+                        // (см. focus): по ссылке из биографии нужен плавный
+                        // подлёт к её точкам, а не мгновенный прыжок.
+                        bounds={null}
                         selected={selectedIds ?? (searching ? NO_IDS : focusIds)}
                         onEventsPress={setSelectedIds}
                         focus={focus}
@@ -285,8 +360,8 @@ export default function MapScreen() {
 
                 {nothingFound && (
                     <View style={[styles.notice, { marginHorizontal: edge, backgroundColor: theme.backgroundRaised }]}>
-                        <ThemedText type="small" themeColor="textSecondary">
-                            Ничего не нашлось — измените запрос или фильтры
+                        <ThemedText type="small" themeColor="textSecondary" style={{ fontWeight: 400 }}>
+                            Ничего не нашлось, измените запрос или фильтры
                         </ThemedText>
                     </View>
                 )}
@@ -329,7 +404,7 @@ const styles = StyleSheet.create({
     },
     filter: {
         position: 'absolute',
-        top: Spacing.two,
+        top: Spacing.one,
         left: 0,
         right: 0,
         gap: Spacing.one,
@@ -382,15 +457,5 @@ const styles = StyleSheet.create({
         maxWidth: MaxContentWidth,
         alignSelf: 'center',
         marginHorizontal: 'auto',
-    },
-    center: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: Spacing.two,
-        paddingHorizontal: Spacing.four,
-    },
-    hint: {
-        textAlign: 'center',
     },
 });

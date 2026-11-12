@@ -35,14 +35,13 @@ export default function AppsScreen() {
         <InfoPage>
             <InfoSection title="Мобильные приложения">
                 <InfoParagraph>
-                    «Память новомучеников» доступна на Android, iOS и в браузере. Везде — одни и те же дни
-                    памяти, биографии и карта мест, связанных с жизнью новомучеников.
+                    Проект «Память новомучеников» доступен на Android, iOS и в браузере.
                 </InfoParagraph>
             </InfoSection>
             <InfoSection title="Android">
                 <InfoParagraph>
                     Приложение для Android можно установить из RuStore. Если магазин недоступен, скачайте
-                    APK напрямую — файл откроется на телефоне или планшете.
+                    APK напрямую, файл откроется на телефоне или планшете.
                 </InfoParagraph>
                 <LinkRow
                     variant="button"
@@ -53,8 +52,7 @@ export default function AppsScreen() {
             </InfoSection>
             <InfoSection title="iOS">
                 <InfoParagraph>
-                    Приложение для iPhone и iPad — в App Store. Откройте страницу приложения, чтобы
-                    установить его или посмотреть список изменений.
+                    Приложение для iPhone и iPad можно установить в App Store.
                 </InfoParagraph>
                 <LinkRow
                     variant="button"
@@ -64,8 +62,7 @@ export default function AppsScreen() {
             </InfoSection>
             <InfoSection title="Веб-сайт">
                 <InfoParagraph>
-                    Веб-версия работает в браузере на компьютере, планшете и телефоне — устанавливать
-                    ничего не нужно. Её можно добавить на главный экран как обычное приложение.
+                    Веб-версия работает в браузере на компьютере, планшете и телефоне без установки. Её можно добавить на главный экран как обычное приложение.
                 </InfoParagraph>
                 <LinkRow variant="button" href="https://map.dybka.ru" label="Открыть сайт" />
             </InfoSection>

@@ -133,7 +133,18 @@ export function PersonMap({
             {/* Главное действие блока — инверсная кнопка, как «Скачать» в настройках. */}
             <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/map', params: { person: number } })}
+                onPress={() =>
+                    router.push({
+                        pathname: '/map',
+                        // Если на мини-карте открыт конкретный событийный блок,
+                        // ведём на общей карте именно к этим точкам. Иначе —
+                        // ко всем местам человека.
+                        params: {
+                            person: number,
+                            ...(open && shownIds.length > 0 ? { events: shownIds.join(',') } : {}),
+                        },
+                    })
+                }
                 style={({ pressed }) => [styles.open, { backgroundColor: theme.text }, pressed && styles.pressed]}>
                 <ThemedText themeColor="background" style={styles.openText}>
                     Открыть на общей карте
@@ -162,7 +173,9 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     events: {
-        borderTopWidth: StyleSheet.hairlineWidth,
+        // Та же линия, что отделяет карточки новомучеников на главной
+        // (см. person-card): толщина и цвет — общие.
+        borderTopWidth: 0.5,
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.three,
         gap: Spacing.four,
@@ -193,6 +206,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.three,
         fontWeight: 400,
+        marginHorizontal: 'auto'
     },
     open: {
         marginHorizontal: Spacing.three,

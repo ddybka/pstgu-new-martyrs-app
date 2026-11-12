@@ -9,9 +9,10 @@ import { ThemedText } from "./themed-text";
 
 import { MaxContentWidth, Spacing, WebHeaderInset } from "@/constants/theme";
 import { useNameOrder } from "@/context/name-order";
+import { usePersonSort } from "@/context/person-sort";
 import { Person } from "@/hooks/use-persons";
 import { useTheme } from "@/hooks/use-theme";
-import { compareDisplayedNames, formatPersonName } from "@/utils/person-name";
+import { sortPersons } from "@/utils/person-sort";
 
 /**
  * Сколько экранов карточек держать смонтированными (вместе с видимым): по
@@ -56,17 +57,10 @@ export function ShowCards({
 }) {
     const theme = useTheme();
     const { order } = useNameOrder();
+    const { sort } = usePersonSort();
 
-    // API отдаёт список по фамилии — в справочном порядке он и остаётся. Если
-    // первым показано имя, список сортируется по нему (см. compareDisplayedNames).
-    const sorted = useMemo(() => {
-        if (order === 'surname-first') return persons;
-
-        return persons
-            .map((person) => ({ person, name: formatPersonName(person.ФИО, order) ?? person.Заголовок ?? '' }))
-            .sort((a, b) => compareDisplayedNames(a.name, b.name))
-            .map(({ person }) => person);
-    }, [persons, order]);
+    // Та же сортировка, что показывает пример в настройках (см. person-sort).
+    const sorted = useMemo(() => sortPersons(persons, order, sort), [persons, order, sort]);
 
     const listHeader = (
         <>

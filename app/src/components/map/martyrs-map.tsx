@@ -109,14 +109,25 @@ export default function MartyrsMap({
         const [[west, south], [east, north]] = focus.bounds;
 
         if (isSinglePoint(focus.bounds)) {
-            cameraRef.current?.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 800 });
+            cameraRef.current?.flyTo({ center: focus.bounds[0], zoom: SINGLE_POINT_ZOOM, duration: 1000 });
         } else {
-            cameraRef.current?.fitBounds([west, south, east, north], {
-                padding: { top: BOUNDS_PADDING * 3, right: BOUNDS_PADDING, bottom: BOUNDS_PADDING * 4, left: BOUNDS_PADDING },
-                duration: 800,
-            });
+            // Для ссылки из биографии — симметричные поля (число), для поиска
+            // — готовый объект под фильтры и шторку.
+            const padding =
+                focus.padding === undefined
+                    ? {
+                        top: BOUNDS_PADDING * 3,
+                        right: BOUNDS_PADDING,
+                        bottom: BOUNDS_PADDING * 4,
+                        left: BOUNDS_PADDING,
+                    }
+                    : { top: focus.padding, right: focus.padding, bottom: focus.padding, left: focus.padding };
+
+            cameraRef.current?.fitBounds([west, south, east, north], { padding, duration: 1000 });
         }
-    }, [focus]);
+        // `mapStyle`/`layers` — чтобы перелёт повторился, если фокус пришёл
+        // раньше, чем стиль карты загрузился и `Camera` появилась на экране.
+    }, [focus, mapStyle, layers]);
 
     const addPie = (name: string) => {
         if (pies[name]) return;
