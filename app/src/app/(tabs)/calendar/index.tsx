@@ -7,6 +7,7 @@ import { ShowCards } from '@/components/show-cards';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { BlockLoading } from '@/components/block-loading';
+import { useCalendarDatePreference } from '@/context/calendar-date';
 import { dayOfYearFilter, usePersons } from '@/hooks/use-persons';
 import { useToday } from '@/hooks/use-today';
 import { readStored, writeStored } from '@/utils/storage';
@@ -70,17 +71,38 @@ function toCalendarDate(date: Date): CalendarDate {
  */
 export default function CalendarScreen() {
     const today = useToday();
-    if (!today) return <BlockLoading />;
+    const { ready } = useCalendarDatePreference();
+    if (!today || !ready) return <BlockLoading />;
 
     return <CalendarContent today={today} />;
 }
 
 function CalendarContent({ today }: { today: Date }) {
+    const { preference } = useCalendarDatePreference();
     const [selected, setSelected] = useState<CalendarDate>(() => toCalendarDate(today));
     const [calendarKey, setCalendarKey] = useState(0);
     const touched = useRef(false);
 
     useEffect(() => {
+        // Настройку сменили — снова применяем её, даже если дату уже выбирали.
+        touched.current = false;
+
+        if (preference === 'current') {
+            // Не синхронно в теле эффекта: React Compiler считает это
+            // каскадной отрисовкой (как в `useApiResource`).
+            let active = true;
+            void Promise.resolve().then(() => {
+                if (!active) return;
+
+                setSelected(toCalendarDate(today));
+                setCalendarKey((key) => key + 1);
+            });
+
+            return () => {
+                active = false;
+            };
+        }
+
         let active = true;
         readStored(STORAGE_KEY).then((raw) => {
             const stored = parseStored(raw);
@@ -91,7 +113,7 @@ function CalendarContent({ today }: { today: Date }) {
         return () => {
             active = false;
         };
-    }, []);
+    }, [preference, today]);
 
     const select = (date: CalendarDate) => {
         touched.current = true;

@@ -8,6 +8,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { BackButton } from '@/components/header-buttons';
 import { FONT_SOURCES } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { CalendarDateProvider } from '@/context/calendar-date';
 import { CardViewProvider } from '@/context/card-view';
 import { ColorSchemeProvider } from '@/context/color-scheme';
 import { LoginProvider } from '@/context/login';
@@ -31,7 +32,9 @@ export default function RootLayout() {
                 <PhotoLayoutProvider>
                     <PersonSortProvider>
                         <NameOrderProvider>
-                            <RootNavigator />
+                            <CalendarDateProvider>
+                                <RootNavigator />
+                            </CalendarDateProvider>
                         </NameOrderProvider>
                     </PersonSortProvider>
                 </PhotoLayoutProvider>

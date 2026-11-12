@@ -16,6 +16,7 @@ import { PersonCardsSkeleton } from '@/components/person-card-skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { PlateButton } from '@/components/ui/plate-button';
 import { ButtonRadius, Spacing } from '@/constants/theme';
+import { CALENDAR_DATE_PREFERENCES, useCalendarDatePreference } from '@/context/calendar-date';
 import type { CardView } from '@/context/card-view';
 import { useColorSchemePreference, type ColorSchemePreference } from '@/context/color-scheme';
 import { NAME_ORDERS, useNameOrder } from '@/context/name-order';
@@ -117,6 +118,7 @@ export default function SettingsScreen() {
     return (
         <InfoPage>
             <ThemeSection />
+            <CalendarDateSection />
             <PhotoLayoutSection example={photoExample} />
             <NameOrderSection example={nameExample} />
             {Platform.OS !== 'web' && <DownloadSection />}
@@ -130,6 +132,20 @@ function ThemeSection() {
     return (
         <InfoSection title="Тема оформления" style={styles.section}>
             <Segments options={THEME_OPTIONS} value={preference} onChange={setPreference} />
+        </InfoSection>
+    );
+}
+
+function CalendarDateSection() {
+    const { preference, setPreference } = useCalendarDatePreference();
+
+    return (
+        <InfoSection title="Показывать в календаре" style={styles.section}>
+            <Segments
+                options={CALENDAR_DATE_PREFERENCES}
+                value={preference}
+                onChange={setPreference}
+            />
         </InfoSection>
     );
 }
