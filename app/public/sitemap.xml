@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>http://memory.nmbook.ru/</loc>
+    <loc>https://map.nmbook.ru/</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/about</loc>
+    <loc>https://map.nmbook.ru/about</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/help</loc>
+    <loc>https://map.nmbook.ru/help</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/apps</loc>
+    <loc>https://map.nmbook.ru/apps</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/map</loc>
+    <loc>https://map.nmbook.ru/map</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/calendar</loc>
+    <loc>https://map.nmbook.ru/calendar</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/settings</loc>
+    <loc>https://map.nmbook.ru/settings</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/search</loc>
+    <loc>https://map.nmbook.ru/search</loc>
     </url>
   <url>
-    <loc>http://memory.nmbook.ru/privacy</loc>
+    <loc>https://map.nmbook.ru/privacy</loc>
     </url>
 </urlset>

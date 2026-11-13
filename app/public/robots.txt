@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: http://memory.nmbook.ru/sitemap.xml
+Sitemap: https://map.nmbook.ru/sitemap.xml

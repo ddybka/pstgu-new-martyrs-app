@@ -22,7 +22,7 @@ export function TabHeaderMenu() {
             {/* На телефоне одна кнопка вместо двух: сортировка сразу в меню,
                 вид карточек — вложенным подменю с собственным заголовком. */}
             <Stack.Toolbar.Menu
-                icon={isIos ? 'arrow.up.arrow.down' : require('@/assets/images/icons/sort.png')}
+                icon={isIos ? 'line.3.horizontal.decrease' : require('@/assets/images/icons/sort.png')}
                 tintColor={theme.text}
                 title="Сортировка"
                 accessibilityLabel="Сортировка и вид карточек">

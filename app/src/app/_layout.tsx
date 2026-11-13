@@ -1,5 +1,7 @@
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -62,6 +64,15 @@ function RootNavigator() {
         const timer = setTimeout(() => preloadMap(isDark), MAP_PRELOAD_DELAY_MS);
         return () => clearTimeout(timer);
     }, [isDark]);
+
+    // На Android полосы системы прозрачные (edge-to-edge), и за часами и
+    // уведомлениями виден фон окна. По умолчанию он не знает о выбранной в
+    // приложении теме — красим его в цвет страницы.
+    useEffect(() => {
+        if (Platform.OS !== 'android') return;
+        void SystemUI.setBackgroundColorAsync(colors.background).catch(() => {});
+    }, [colors.background]);
+
     if (!fontsLoaded && !fontsError) return null;
 
     const base = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -72,6 +83,9 @@ function RootNavigator() {
 
     return (
         <ThemeProvider value={navigationTheme}>
+            {/* Часы и уведомления — по теме приложения, а не по системной:
+                в светлой теме иначе белые иконки на белом фоне. */}
+            <StatusBar style={isDark ? 'light' : 'dark'} />
             <AnimatedSplashOverlay />
             <LoginProvider>
                 <Stack

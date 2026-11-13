@@ -150,11 +150,13 @@ export function EventsPanel({
                 data={shown}
                 keyExtractor={(group) => String(group.number)}
                 keyboardShouldPersistTaps="handled"
+                // Строка человека тяжёлая — в ней весь текст его событий.
+                // Поэтому пачки маленькие и частые: одна строка за кадр вместо
+                // трёх разом, иначе прокрутка на 120 Гц дёргается.
                 initialNumToRender={6}
-                maxToRenderPerBatch={3}
-                updateCellsBatchingPeriod={30}
+                maxToRenderPerBatch={1}
+                updateCellsBatchingPeriod={16}
                 windowSize={7}
-                removeClippedSubviews
                 contentContainerStyle={styles.list}
                 ItemSeparatorComponent={Separator}
                 ListEmptyComponent={

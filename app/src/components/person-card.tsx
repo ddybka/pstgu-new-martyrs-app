@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import {
     StyleSheet,
     View,
@@ -21,7 +21,7 @@ import { router } from "expo-router";
 
 const COMPACT_PHOTO_SIZE = 48;
 
-export function PersonCard({
+function PersonCardBase({
     person,
     view: viewOverride,
     extra,
@@ -109,6 +109,14 @@ export function PersonCard({
         </PersonCardMenu>
     );
 }
+
+/**
+ * Карточка не перерисовывается при каждой смене окна прокрутки: `FlatList`
+ * заново отдаёт видимые элементы на каждую пачку, а в «Кратком» виде их в
+ * окне втрое больше. Сравнение свойств дешевле целой отрисовки — особенно на
+ * Android, где в каждой карточке живёт ещё и нативное меню.
+ */
+export const PersonCard = memo(PersonCardBase);
 
 /**
  * Краткий вид: над именем — чин святости бордовым и сан («Исповедник ·

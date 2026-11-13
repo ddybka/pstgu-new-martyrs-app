@@ -5,10 +5,12 @@ import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, TextInput
 import { ErrorContent, HintContent } from '@/components/block-error';
 import { SearchResult } from '@/components/search-result';
 import { ThemedText } from '@/components/themed-text';
+import { cardListBatch } from '@/constants/card-list';
 import { MaxContentWidth, Spacing, WebHeaderInset } from '@/constants/theme';
+import { useCardView } from '@/context/card-view';
 import { usePersonSearch } from '@/hooks/use-person-search';
 import { useTheme } from '@/hooks/use-theme';
-import { plural } from '@/utils/plural';
+import { isSingular, plural } from '@/utils/plural';
 
 import { Metadata } from 'expo-router/server';
 import { SITE_URL } from '@/constants/site';
@@ -45,6 +47,8 @@ export default function SearchScreen() {
     const [query, setQuery] = useState('');
     const search = usePersonSearch(query);
     const nativeSearchBar = Platform.OS === 'ios';
+    const { view } = useCardView();
+    const compact = view === 'compact';
 
     const status = search.idle ? null : search.offline ? (
         <View style={[styles.notice, { backgroundColor: theme.backgroundElement }]}>
@@ -57,7 +61,8 @@ export default function SearchScreen() {
         </View>
     ) : !search.loading && !search.error && search.total > 0 ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.count}>
-            Найдено {plural(search.total, 'запись', 'записи', 'записей')}
+            {isSingular(search.total) ? 'Найдена' : 'Найдено'}{' '}
+            {plural(search.total, 'запись', 'записи', 'записей')}
         </ThemedText>
     ) : null;
 
@@ -126,6 +131,8 @@ export default function SearchScreen() {
                 keyboardShouldPersistTaps="handled"
                 data={search.loading ? [] : search.hits}
                 keyExtractor={(hit) => String(hit.number)}
+                // Как на главной: карточка та же, и досоздаётся так же.
+                {...cardListBatch(compact)}
                 renderItem={({ item }) => <SearchResult hit={item} />}
                 ListHeaderComponent={header}
                 ListEmptyComponent={empty}
@@ -169,13 +176,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.three,
-        marginHorizontal: Spacing.three,
+        // От края до края и без скругления: это полоса-предупреждение над
+        // выдачей, как «нет связи» на главной (см. OfflineNotice).
         marginBottom: Spacing.two,
         padding: Spacing.three,
-        borderRadius: 10,
     },
     noticeText: {
         flex: 1,
+        fontWeight: 400,
     },
     hint: {
         alignItems: 'center',

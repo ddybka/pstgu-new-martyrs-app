@@ -312,13 +312,8 @@ function DownloadSection() {
     return (
         <InfoSection title="Скачать базу" style={styles.section}>
             <InfoParagraph>
-                Биографии сохранятся на устройстве и будут открываться без интернета, например в поездке.
+                Биографии сохранятся на устройстве и будут открываться без интернета.
             </InfoParagraph>
-            <ThemedText type="small" themeColor="textSecondary" style={[styles.note, styles.inset]}>
-                {allSelected
-                    ? 'Выбраны все месяцы — скачается вся база, включая записи без даты памяти.'
-                    : 'Месяцы скачивают только записи с известной датой памяти; остальные доступны онлайн.'}
-            </ThemedText>
 
             <View style={styles.monthsHeader}>
                 <PlateButton label={allSelected ? 'Снять все' : 'Выбрать все'} onPress={toggleAll} />

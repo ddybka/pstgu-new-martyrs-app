@@ -88,7 +88,9 @@ export function PersonThumbnail({ photos, name, size = 64 }: { photos?: unknown;
                 style={styles.fill}
                 contentFit="cover"
                 contentPosition="top"
-                transition={150}
+                // Без проявления: карточка пропадает из окна прокрутки и
+                // возвращается, и с `transition` снимок каждый раз проявлялся
+                // заново — в списке это читается как мигание.
                 recyclingKey={item.fileId}
                 accessibilityLabel={photoLabel(name, 0, 1)}
                 onLoad={photo.onLoad}
@@ -132,7 +134,14 @@ function usePhotoSource(item: PersonPhotoItem | undefined) {
         source: attempt >= 1 && item?.fallback ? item.fallback : item?.source,
         failed: attempt > 1 || (attempt === 1 && !canFallback),
         onLoad: () => setLoaded(true),
-        onError: () => (attempt === 0 && canFallback ? toFallback() : setAttempt(2)),
+        onError: () => {
+            // Снимок уже показан — позднюю ошибку (запрос отменили, когда
+            // карточка ушла из окна прокрутки) не считаем: иначе карточка
+            // прятала фотографию и меняла высоту прямо на глазах.
+            if (loaded) return;
+            if (attempt === 0 && canFallback) toFallback();
+            else setAttempt(2);
+        },
     };
 }
 
@@ -159,7 +168,9 @@ function PhotoSingle({ item, name }: { item: PersonPhotoItem; name?: string }) {
                 style={[styles.singleImage, size]}
                 contentFit="contain"
                 contentPosition="left"
-                transition={200}
+                // Без проявления: карточка пропадает из окна прокрутки и
+                // возвращается, и с `transition` снимок каждый раз проявлялся
+                // заново — в списке это читается как мигание.
                 accessibilityLabel={photoLabel(name, 0, 1)}
                 onLoad={({ source }) => {
                     photo.onLoad();

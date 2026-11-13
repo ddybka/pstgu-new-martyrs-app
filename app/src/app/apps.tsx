@@ -64,7 +64,7 @@ export default function AppsScreen() {
                 <InfoParagraph>
                     Веб-версия работает в браузере на компьютере, планшете и телефоне без установки. Её можно добавить на главный экран как обычное приложение.
                 </InfoParagraph>
-                <LinkRow variant="button" href="http://memory.nmbook.ru" label="Открыть сайт" />
+                <LinkRow variant="button" href="https://map.nmbook.ru" label="Открыть сайт" />
             </InfoSection>
         </InfoPage>
     );

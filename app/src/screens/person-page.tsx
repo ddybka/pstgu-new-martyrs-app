@@ -41,6 +41,22 @@ const KIND_LABELS: Record<string, string> = Object.fromEntries(
     POINT_KINDS.map(({ kind, label }) => [kind, label])
 );
 
+/**
+ * Поиск в нижней панели — iOS 26 на iPhone. Панель с полем встаёт над
+ * клавиатурой (а без неё — над нижним краем экрана), и счётчик совпадений
+ * оказывался под ней. Здесь — высота панели вместе с отступами вокруг поля.
+ *
+ * На iOS 18 и на iPad поиск остаётся в шапке, и поднимать счётчик не нужно.
+ * С iOS 26 панель — это системный `UINavigationItem.SearchBarPlacement` с
+ * `allowToolbarIntegration` (см. react-native-screens), и в нём же она
+ * уезжает в нижний тулбар.
+ */
+const BOTTOM_SEARCH_BAR_HEIGHT = 58;
+const SEARCH_BAR_AT_BOTTOM =
+    Platform.OS === 'ios' &&
+    !(Platform as { isPad?: boolean }).isPad &&
+    Number.parseFloat(String(Platform.Version)) >= 26;
+
 function formatEventDate(date: string | null | undefined) {
     if (date == null) return 'Дата неизвестна';
     if (/^\d{4}$/.test(date.trim())) return `${date} г.`;
@@ -542,9 +558,12 @@ export default function PagePerson() {
                     total={search.total}
                     onStep={step}
                     style={{
-                        bottom: keyboardHeight > 0
+                        // Счётчик — над клавиатурой, а на iOS 26 ещё и над
+                        // нижней панелью поиска: иначе он уходил под неё.
+                        bottom: (keyboardHeight > 0
                             ? keyboardHeight + Spacing.two
-                            : insets.bottom + Spacing.three,
+                            : insets.bottom + Spacing.three) +
+                            (SEARCH_BAR_AT_BOTTOM ? BOTTOM_SEARCH_BAR_HEIGHT : 0),
                     }}
                 />
             )}
@@ -715,7 +734,10 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.two,
     },
     mapCard: {
-        width: 'fit-content',
+        // Плашка по своей ширине, а не во всю строку: на телефоне
+        // `width: 'fit-content'` Yoga не понимает, а `alignSelf` сжимает
+        // кнопку по тексту и там, и в вебе.
+        alignSelf: 'flex-start',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',

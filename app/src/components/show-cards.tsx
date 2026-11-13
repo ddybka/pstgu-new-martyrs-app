@@ -8,18 +8,13 @@ import { PersonCardsSkeleton } from "./person-card-skeleton";
 import { ThemedText } from "./themed-text";
 
 import { MaxContentWidth, Spacing, WebHeaderInset } from "@/constants/theme";
+import { cardListBatch } from "@/constants/card-list";
+import { useCardView } from "@/context/card-view";
 import { useNameOrder } from "@/context/name-order";
 import { usePersonSort } from "@/context/person-sort";
 import { Person } from "@/hooks/use-persons";
 import { useTheme } from "@/hooks/use-theme";
 import { sortPersons } from "@/utils/person-sort";
-
-/**
- * Сколько экранов карточек держать смонтированными (вместе с видимым): по
- * три в обе стороны. Шире не нужно: карточка без SwiftUI-хоста, создать её
- * заново дёшево, а узкое окно бережёт память в днях с сотней фотографий.
- */
-const WINDOW_SIZE = 7;
 
 /**
  * Список дел — общий для главной и календаря.
@@ -58,6 +53,8 @@ export function ShowCards({
     const theme = useTheme();
     const { order } = useNameOrder();
     const { sort } = usePersonSort();
+    const { view } = useCardView();
+    const compact = view === 'compact';
 
     // Та же сортировка, что показывает пример в настройках (см. person-sort).
     const sorted = useMemo(() => sortPersons(persons, order, sort), [persons, order, sort]);
@@ -88,11 +85,8 @@ export function ShowCards({
             data={loading ? [] : sorted}
             keyExtractor={(person, index) => String(person.Номер ?? index)}
             // Карточки досоздаются небольшими пачками с паузой — без
-            // запинок посреди прокрутки.
-            initialNumToRender={5}
-            maxToRenderPerBatch={2}
-            updateCellsBatchingPeriod={80}
-            windowSize={WINDOW_SIZE}
+            // запинок посреди прокрутки (см. `cardListBatch`).
+            {...cardListBatch(compact)}
             ListHeaderComponent={listHeader}
             ListFooterComponent={listFooter ?? undefined}
             renderItem={({ item }) => (

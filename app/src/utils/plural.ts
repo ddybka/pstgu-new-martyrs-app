@@ -1,3 +1,14 @@
+/**
+ * Нужна ли при числе форма единственного числа: 1 запись, 21 запись, но
+ * 11 записей. Для глагола и причастия рядом с числом: «Найдена 1 запись».
+ */
+export function isSingular(count: number) {
+    const lastTwoDigits = count % 100;
+    const lastDigit = count % 10;
+
+    return lastDigit === 1 && (lastTwoDigits < 11 || lastTwoDigits > 14);
+}
+
 /** Число с существительным в нужной форме: 1 событие, 3 события, 5 событий. */
 export function plural(count: number, one: string, few: string, many: string) {
     const lastTwoDigits = count % 100;

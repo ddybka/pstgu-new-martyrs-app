@@ -230,7 +230,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.three,
         fontWeight: 400,
-        marginHorizontal: 'auto'
+        // По центру карты и по центру своей строки: `margin: auto` в Yoga
+        // текст не центрировал — он прилипал к левому краю.
+        textAlign: 'center',
     },
     open: {
         marginHorizontal: Spacing.three,
